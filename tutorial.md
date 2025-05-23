@@ -115,3 +115,95 @@ library(readxl)
 library(pdftools)
 library(magick)
  ```
+
+<details>
+<summary>Now we can define and create paths to user folders and software execution files</summary>
+
+# Main folders. Should end with a "/"
+mainFolder="CladoScope/"
+userPath = "/Users/adamaslam/"
+folderPath=paste0(userPath, "Desktop/", mainFolder)
+# folderPath="/Users/adamaslam/Desktop/Hypsiglena/Filtering/"
+clusterFolderPath="/home/aaslam/" #If using cluster then this is relevant for some analyses that make files that reference other file locations
+
+
+# Subfolders. Should end with a "/"
+VCFPath="VCFs/"
+TrawPath="Traw/"
+PHYPath="PHYs/"
+bedPath="Bed/"
+admixturePath="Admixture/"
+IQTreePath="Tree/"
+ThreeDPath="3DPlots/"
+pdfPath="OutputPDFs/"
+nexusPath="Nexus/"
+bppPath="BPP/"
+testPath="Test/"
+SVDQPath="SVDQ/"
+binaryNexusPath="BinaryNexus/"
+isolationPath="Isolation/"
+gadmaPath="Gadma/"
+DsuitePath="Dsuite/"
+rawPath="Raw/"
+tablePath="Tables/"
+SoftwarePath="Software/"
+
+# Software paths
+phylipCoversionFolderPath=paste0(folderPath,SoftwarePath,"vcf2phylip-master")
+pythonPath = "/opt/anaconda3/envs/tf/bin/python"
+bppSWPathMac = "/Users/adamaslam/bpp-4.8.2-macos-aarch64/bin/bpp"
+bppSWPathLinux = "bpp-4.8.2-linux-x86_64/bin/bpp"
+gadmaSWPath = "/opt/anaconda3/bin/gadma"
+gadmaClusterSWPath = "/home/aaslam/miniconda3/bin/gadma"
+admixtureSWFolderPath=paste0(folderPath,SoftwarePath,"admixture_macosx-1.3.0/")
+IQTreeSWPath="/opt/homebrew/bin/iqtree2"
+easySFSPath="/Users/adamaslam/easySFS/easySFS.py"
+DSuiteFBranchSWPath = "/Users/adamaslam/Dsuite/utils/dtools.py"
+DtriosSWPath = "/Users/adamaslam/Dsuite/Build/Dsuite"
+
+# Unfiltered raw VCF file name (e.g. ipyrad output)
+rawFile="DeNovo.vcf"
+rawString=str_sub(rawFile,end=-5)
+
+
+knitr::opts_knit$set(root.dir = folderPath)
+
+
+# Only run this at the very beginning of all analyses so results aren't deleted
+# Commented out by default to avoid accidental deletion
+
+# dir.create(file.path(folderPath), showWarnings = FALSE)
+#
+# dir.create(file.path(paste0(folderPath,VCFPath)), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,TrawPath)), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,PHYPath)), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,bedPath)), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,admixturePath)), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,IQTreePath)), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,ThreeDPath)), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,pdfPath)), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,nexusPath)), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,bppPath)), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,testPath)), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,binaryNexusPath)), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,isolationPath)), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,gadmaPath)), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,DsuitePath)), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,rawPath)), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,tablePath)), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,SVDQPath)), showWarnings = FALSE)
+
+# Create nested folders in pdfPath and admixturePath
+# dir.create(file.path(paste0(folderPath,pdfPath,"FilterSelectionPlots")), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,pdfPath,"FilterSelectionHeatmaps")), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,pdfPath,"Trees")), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,pdfPath,"AdmixtureBarPlots")), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,pdfPath,"AdmixturePieMaps")), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,pdfPath, isolationPath)), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,pdfPath, gadmaPath)), showWarnings = FALSE)
+# dir.create(file.path(paste0(folderPath,pdfPath,"Tables/")), showWarnings = FALSE)
+
+# dir.create(file.path(paste0(folderPath,admixturePath,"CVErrors")), showWarnings = FALSE)
+
+
+```r

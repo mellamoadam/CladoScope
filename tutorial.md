@@ -1,6 +1,7 @@
 <details>
 <summary>First we install and load necessary packages</summary>
-
+<br>
+          
 ```r
 install.packages("stringr")
 install.packages("smartsnp")
@@ -114,15 +115,15 @@ library(reshape2)
 library(readxl)
 library(pdftools)
 library(magick)
+```
 </details>
-
-
 
 
 <details>
 <summary>Now we can define and create paths to user folders and software execution files</summary>
-
-
+<br>
+          
+```r
 
 # Main folders. Should end with a "/"
 mainFolder="CladoScope/"
@@ -209,6 +210,5 @@ knitr::opts_knit$set(root.dir = folderPath)
 # dir.create(file.path(paste0(folderPath,pdfPath,"Tables/")), showWarnings = FALSE)
 
 # dir.create(file.path(paste0(folderPath,admixturePath,"CVErrors")), showWarnings = FALSE)
-
-
-</details>```
+```
+</details>

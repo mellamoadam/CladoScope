@@ -1,6 +1,7 @@
 <details>
 <summary>First we install and load necessary packages</summary>
 <br>
+ ```
 install.packages("stringr")
 install.packages("smartsnp")
 install.packages("adegenet")
@@ -112,7 +113,9 @@ library(grid)
 library(reshape2)
 library(readxl)
 library(pdftools)
-library(magick)</details>
+library(magick)
+```
+</details>
 
 
 

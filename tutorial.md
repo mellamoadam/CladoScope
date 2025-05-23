@@ -115,7 +115,6 @@ library(readxl)
 library(pdftools)
 library(magick)
 </details>
-```
 
 
 
@@ -123,7 +122,7 @@ library(magick)
 <details>
 <summary>Now we can define and create paths to user folders and software execution files</summary>
 
-```r
+
 
 # Main folders. Should end with a "/"
 mainFolder="CladoScope/"
@@ -212,5 +211,4 @@ knitr::opts_knit$set(root.dir = folderPath)
 # dir.create(file.path(paste0(folderPath,admixturePath,"CVErrors")), showWarnings = FALSE)
 
 
-</details>
-```
+</details>```

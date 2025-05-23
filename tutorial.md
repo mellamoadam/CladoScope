@@ -119,19 +119,21 @@ library(magick)
 </details>
 
 
+Now we can define and create local paths to user folders and software execution files that keep the results and temporary files organized. Must be adjusted to your own system.
 <details>
-<summary>Now we can define and create paths to user folders and software execution files</summary>
+<summary>Define and create paths</summary>
 <br>
           
 ```r
 
+################################# USER INPUTS  #################################
 # Main folders. Should end with a "/"
 mainFolder="CladoScope/"
 userPath = "/Users/adamaslam/"
 folderPath=paste0(userPath, "Desktop/", mainFolder)
-# folderPath="/Users/adamaslam/Desktop/Hypsiglena/Filtering/"
-clusterFolderPath="/home/aaslam/" #If using cluster then this is relevant for some analyses that make files that reference other file locations
-
+# If using cluster then this is relevant for some analyses that make files that reference other file locations
+clusterFolderPath="/home/aaslam/" 
+################################################################################
 
 # Subfolders. Should end with a "/"
 VCFPath="VCFs/"
@@ -212,3 +214,231 @@ knitr::opts_knit$set(root.dir = folderPath)
 # dir.create(file.path(paste0(folderPath,admixturePath,"CVErrors")), showWarnings = FALSE)
 ```
 </details>
+
+
+
+Pulling in raw data files including `coordinateFile` that contains sample coordinates, VCF file, map files (.shp and geojson for boundaries, .tiff for terrain). Includes a query for iNaturalist if specified that will later include citizen science observations as gray points in background of DAPC map.
+<details>
+<summary>Pull raw data</summary>
+<br>
+          
+```r
+
+################################# USER INPUTS  #################################
+# Maximum allowable tolerance on GPS position for iNaturalist query
+maxGPSAccuracyInat = 30000
+iNatQuery = "Hypsiglena"
+################################################################################
+
+coordinateFile="Updated_Specimen_data_sheet_11272023.xlsx"
+coordinatePath=paste0(folderPath,rawPath,coordinateFile)
+
+vcfAll=read.vcfR(paste0(folderPath,rawPath,rawFile))
+vcfSamples=colnames(vcfAll@gt)[-1]
+
+
+# Maps. shp files corresponding shx file in same folder for sf_read
+MexicoMap = paste0(folderPath,rawPath,"states.geojson")
+terrainMapPath = paste0(folderPath, rawPath, "NE2_HR_LC_SR_W.tif")
+internalBordersMapPath = paste0(folderPath, rawPath, "ne_10m_admin_1_states_provinces_lines.shp") # Need corresponding shx file in same folder for sf_read 
+countryBordersMapPath = paste0(folderPath, rawPath, "ne_10m_admin_0_map_subunits.shp") # Need corresponding shx file in same folder for sf_read 
+
+
+# Search iNaturalist for Hypsiglena observations (only if it hasn't been done yet. very time inefficient)
+inatCoordsFile = paste0(folderPath, rawPath, "inatCoords.csv")
+
+if (!file.exists(inatCoordsFile)) {
+  inatData = get_inat_obs(query= iNatQuery, maxresults = 10000)
+  inatCoords = inatData[inatData$public_positional_accuracy < maxGPSAccuracyInat, c("latitude", "longitude")]
+  inatCoords = na.omit(inatCoords)
+  write.csv(inatCoords, file=paste0(folderPath, rawPath, "inatCoords.csv"), row.names=FALSE)
+}
+inatCoords = read.csv(inatCoordsFile)
+
+
+```
+</details>
+
+
+
+We must convert terrain raster into RGB colors for map representation along with formatting coordinates file and map bounding boxes for plotting compatibility.
+<details>
+<summary>Map related organization</summary>
+<br>
+
+################################# USER INPUTS  #################################
+# Change colnames and create df
+coordinates=read_excel(coordinatePath)
+names(coordinates)[names(coordinates) == 'Name_In_Seq_files']='ID' 
+names(coordinates)[names(coordinates) == 'Lat']='Latitude' 
+names(coordinates)[names(coordinates) == 'Long']='Longitude' 
+coordinates=coordinates[,c('ID','Latitude','Longitude')]
+coordinates=as.data.frame(coordinates)
+
+# Estimating coordinates of outgroups from LSU museum specimen notes. Vague description on HWY 200 some # of km E of Guererro/Michoacan line. 
+# Coordinates below likely within 5km radius
+coordinates$Latitude[coordinates$ID == "LSUMZ_39534_Pseudoleptodeira_latifasciata"] = 18.02
+coordinates$Longitude[coordinates$ID == "LSUMZ_39534_Pseudoleptodeira_latifasciata"] = -102.18
+coordinates$Latitude[coordinates$ID=="LSUMZ_39571_latifasciata_latifasciata"]=17.99
+coordinates$Longitude[coordinates$ID=="LSUMZ_39571_latifasciata_latifasciata"]=-102.15
+
+# Change IDs to match VCF File IDs
+coordinates$ID[coordinates$ID=="UTAR_52345_chlorophaea_chlorophaea"]="UTAR_52345F_chlorophaea_chlorophaea"
+coordinates$ID[coordinates$ID=="UTAR_52350_jani_texana"]="UTAR_52350F_jani_texana"
+
+
+# Define bounds for terrain map, with degrees of buffer in each direction
+mapBoundsBuffer = 1.2
+
+# If plotting is an issue due to map size, scale down (1 = no scaling)
+downsampleTerrainMapFactor = 1
+
+################################################################################
+
+terrainMapBounds = c(min(coordinates$Longitude) - mapBoundsBuffer, max(coordinates$Longitude) + mapBoundsBuffer, min(coordinates$Latitude) - mapBoundsBuffer, max(coordinates$Latitude) + mapBoundsBuffer)  
+
+terrainRaster = rast(terrainMapPath)
+terrainRaster = crop(terrainRaster, terrainMapBounds)
+
+if(downsampleTerrainMapFactor > 1){
+  terrainRaster = aggregate(terrainRaster, fact = downsampleTerrainMapFactor, fun = mean) 
+}
+
+terrainDF = as.data.frame(terrainRaster, xy = TRUE)
+colnames(terrainDF) = c("Longitude", "Latitude", "R", "G", "B")
+
+# Convert RGB (0-255) to color. This map uses RGB columns that we convert to color here.
+terrainDF$Color = rgb(terrainDF$R / 255, terrainDF$G / 255, terrainDF$B / 255)
+
+# Now read in borders and crop. Internal are states/provinces
+internalBordersMap = read_sf(internalBordersMapPath)
+internalBordersBbox = st_bbox(c(xmin = terrainMapBounds[1], xmax = terrainMapBounds[2], 
+                  ymin = terrainMapBounds[3], ymax = terrainMapBounds[4]), 
+                crs = st_crs(internalBordersMap))  
+
+internalBordersMap = st_crop(internalBordersMap, internalBordersBbox)  
+
+
+countryBordersMap = read_sf(countryBordersMapPath)
+countryBordersBbox = st_bbox(c(xmin = terrainMapBounds[1], xmax = terrainMapBounds[2], 
+                  ymin = terrainMapBounds[3], ymax = terrainMapBounds[4]), 
+                crs = st_crs(countryBordersMap))  
+
+countryBordersMap = st_crop(countryBordersMap, countryBordersBbox)  
+
+```r
+
+
+```
+</details>
+
+
+
+
+
+<details>
+<summary>First we install and load necessary packages</summary>
+<br>
+          
+```r
+
+
+```
+</details>
+
+
+
+
+
+<details>
+<summary>First we install and load necessary packages</summary>
+<br>
+          
+```r
+
+
+```
+</details>
+
+
+
+
+
+<details>
+<summary>First we install and load necessary packages</summary>
+<br>
+          
+```r
+
+
+```
+</details>
+
+
+
+
+
+<details>
+<summary>First we install and load necessary packages</summary>
+<br>
+          
+```r
+
+
+```
+</details>
+
+
+
+
+
+<details>
+<summary>First we install and load necessary packages</summary>
+<br>
+          
+```r
+
+
+```
+</details>
+
+
+
+
+
+<details>
+<summary>First we install and load necessary packages</summary>
+<br>
+          
+```r
+
+
+```
+</details>
+
+
+
+
+
+<details>
+<summary>First we install and load necessary packages</summary>
+<br>
+          
+```r
+
+
+```
+</details>
+
+
+
+
+
+
+
+
+
+
+
+
+

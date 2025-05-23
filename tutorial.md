@@ -1,7 +1,6 @@
-````
 <details>
 <summary>First we install and load necessary packages</summary>
-```
+````
 install.packages("stringr")
 install.packages("smartsnp")
 install.packages("adegenet")
@@ -114,9 +113,8 @@ library(reshape2)
 library(readxl)
 library(pdftools)
 library(magick)
-```
-</details>
 ````
+</details>
 
 
 

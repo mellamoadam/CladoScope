@@ -217,7 +217,7 @@ knitr::opts_knit$set(root.dir = folderPath)
 </details>
 
 
-
+<br>
 Pulling in raw data files including `coordinateFile` that contains sample coordinates, VCF file, map files (.shp and geojson for boundaries, .tiff for terrain). Includes a query for iNaturalist if specified that will later include citizen science observations as gray points in background of DAPC map.
 <details>
 <summary>Pull raw data</summary>
@@ -262,10 +262,13 @@ inatCoords = read.csv(inatCoordsFile)
 
 
 
+<br>
 We must convert terrain raster into RGB colors for map representation along with formatting coordinates file and map bounding boxes for plotting compatibility.
 <details>
 <summary>Map related organization</summary>
 <br>
+
+```r
 
 ################################# USER INPUTS  #################################
 # Change colnames and create df
@@ -327,16 +330,12 @@ countryBordersBbox = st_bbox(c(xmin = terrainMapBounds[1], xmax = terrainMapBoun
 
 countryBordersMap = st_crop(countryBordersMap, countryBordersBbox)  
 
-```r
-
-
 ```
 </details>
 
 
 
-
-
+<br>
 <details>
 <summary>First we install and load necessary packages</summary>
 <br>

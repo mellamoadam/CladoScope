@@ -1,4 +1,4 @@
-This repository provides CladoScope, a modular and iterative workflow for analyzing population structure using SNP data. It is designed for population genetic studies where group definitions are uncertain, and where initial assumptions about population membership may need refinement based on downstream analyses. This code will also run several analyses based on the final defined subsets, as well as prepare input text files necessary for several analyses. A full example with user defined parameters selected is shown in Hypsiglena.Rmd.
+This repository provides CladoScope, a modular and iterative workflow for analyzing population structure using SNP data. It is designed for population genetic studies where group definitions are uncertain, and where initial assumptions about population membership may need refinement based on downstream analyses. This code will also run several analyses based on the final defined subsets, as well as prepare input text files necessary for several analyses. A full example with user defined parameters selected is shown in Hypsiglena.Rmd. The code is based in R but some bash commands are executed using system().
 
 Inputs:
   1. VCF file

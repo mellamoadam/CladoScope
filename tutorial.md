@@ -1,7 +1,6 @@
 <details>
 <summary>First we install and load necessary packages</summary>
-<br>
- ```
+```r
 install.packages("stringr")
 install.packages("smartsnp")
 install.packages("adegenet")

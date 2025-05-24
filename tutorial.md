@@ -2160,7 +2160,9 @@ After the code saves as a .tre file, we must manually change the species tip col
 <br>
 
 # DTrios
-
+This analysis generates estimates of gene flow between populations using D-statistics (ABBA-BABA tests) computed across all possible trios as implemented by Malinsky et al., 2021.
+<br>
+<br>
 <details>
 <summary>DSuite DTrios</summary>
 <br>
@@ -2397,7 +2399,7 @@ for (currentBestFilterDSuite in DSuiteBestFilterList){
 
 <br>
 <br>
-This analysis generates estimates of gene flow between populations using D-statistics (ABBA-BABA tests) computed across all possible trios. The resulting values are visualized as a heatmap, which highlights patterns of introgression between lineages. Warmer colors indicate stronger signals of gene flow, helping to identify which population pairs may have exchanged genetic material.
+The following heatmap highlights patterns of introgression between lineages. Warmer colors indicate stronger signals of gene flow, helping to identify which population pairs may have exchanged genetic material.
 <br>
 <br>
 
@@ -2405,10 +2407,17 @@ This analysis generates estimates of gene flow between populations using D-stati
 <br>
 <br>
 
-# Isolation by Distance and Environment
 
+
+
+
+
+# Isolation by Distance and Environment
+We used Multiple Matrix Regression with Randomization (MMRR) to test for isolation by distance (IBD) and isolation by environment (IBE) as implemented by Wang, 2013. This method assesses how genetic distances between individuals or populations are explained by geographic and environmental distances. By fitting both predictors in the same model, MMRR helps disentangle their relative contributions to genetic structure. This approach allows us to quantify how much spatial separation and ecological differences contribute to observed patterns of genetic divergence. In the following implementation, we remove collinearity in environmental variables by using the top 2 PCs of the 19 available world climatic variables.
+<br>
+<br>
 <details>
-<summary>MMRR</summary>
+<summary>Isolation</summary>
 <br>
 <br>
           
@@ -2616,18 +2625,371 @@ dev.off()
 
 <br>
 <br>
-This analysis generates estimates of gene flow between populations using D-statistics (ABBA-BABA tests) computed across all possible trios. The resulting values are visualized as a heatmap, which highlights patterns of introgression between lineages. Warmer colors indicate stronger signals of gene flow, helping to identify which population pairs may have exchanged genetic material.
+The images generated include PC loadings for each variable on the top two principal components, with the amount of variation explained by these top two PCs displayed in the title. Scatterplots show the relationship between genetic distance and environmental variable distances derived from these PCs, as well as spatial distance. Additionally, a table summarizes the statistical results, providing quantitative support for the observed relationships.
 <br>
 <br>
 
-![Dsuite](https://github.com/mellamoadam/CladoScope/blob/main/Images/dsuite.png)
+![IBD IBE](https://github.com/mellamoadam/CladoScope/blob/main/Images/isolation.png)
 <br>
 <br>
 
-# Isolation by Distance and Environment
-We used Multiple Matrix Regression with Randomization (MMRR) to test for isolation by distance (IBD) and isolation by environment (IBE) as implemented by Wang, 2013. This method assesses how genetic distances between individuals or populations are explained by geographic and environmental distances. By fitting both predictors in the same model, MMRR helps disentangle their relative contributions to genetic structure. This approach allows us to quantify how much spatial separation and ecological differences contribute to observed patterns of genetic divergence.
+# GADMA
+GADMA is a tool used to infer demographic history using the allele frequency spectra to estimate population history parameters. This approach helps reveal historical events like population splits, expansions, and gene flow that shaped current genetic variation. We find the optimal number of samples to include per population by implementing easySFS (https://github.com/isaacovercast/easySFS). For subsets that have more than three populations, we collapse closely related populations into one based on regex expressions using their population names. For example, one subset contains 1) *H. chlorophaea desericola* (Eastern Clade), 2) *H. chlorophaea desericola* (Western Clade), 3) *H. chlorophaea chlorophaea*, 4) *H. chlorophaea loreala*, 5) *sp. nov. 1*, and 6) *sp. nov. 2*. This code will automatically consider 1) through 4) as one population, renamed as *H. chlorophaea*. This is because the engine used here, moments, can only handle three populations with our implementation currently. 
+<br>
+<br>
+This code creates the text files needed to run GADMA and runs GADMA if `gadmaRunLocation` is set to `folderPath`. This analysis can be costly in terms of computational power, therefore, I recommend to run with `gadmaRunLocation` set to `clusterFolderPath`. This alters how the run files reference each other, and assumes the folder will be moved to the `clusterFolderPath` location.
+<br>
+<br>
 <details>
-<summary>MMRR</summary>
+<summary>Gadma</summary>
+<br>
+<br>
+          
+```r
+
+
+# Note that the Population Labels line in the params file should be in order from most to least ancestral split. The code below makes an attempt to order them correctly based on subsetting, rerooting a tree etc., but it may need to be manually adjusted in the output file. If changes must be made, also switch the order of the Projections line to match the Population Labels.
+
+################################# USER INPUTS ################################## 
+
+# Set folder path where gadma will be run. Parameter files reference each other, so must specify cluster vs PC for example
+gadmaRunLocation = clusterFolderPath
+
+# Set list of VCF subset file paths to perform Gadma on (generally no outgroup and MAC/MAF filters off)
+gadmaBestFilterList = bestFilterSetsOutgroupOmittedNoMACMAF[grepl("chlorophaea|ochrorhyncha|jani", bestFilterSetsOutgroupOmittedNoMACMAF, ignore.case = TRUE)]
+
+# Selecting subsets for Gadma is tricky because we can only have a maximum of 3 populations. combinePopsFunction can be used to combine sub-populations into one.
+gadmaBestFilterList = gadmaBestFilterList[c(1,2,4)]
+
+# Population map to use
+initializeGadmaPopMap = PopMapDAPC
+
+# Append samplesToRemove with hybrid samples for SVDQ. samplesToRemove contains samples that are of poor quality or cannot be used for some reason. hybridSamples can be identified by PCA, IQ-Tree etc.
+samplesToRemoveGadma = c(samplesToRemove, hybridSamples)
+
+# Add H_jani_Other samples to samplesToRemoveBPP if using matchDFJaniSplit
+if (identical(initializeGadmaPopMap, matchDFJaniSplit)){
+  samplesToRemoveGadma = union(samplesToRemoveGadma, janiGroups$H_jani_Other)
+}
+
+# The tree below is an SVDQ output. This is subset based on the populations present in the VCF subset in the loop below.
+treeString="((((((H_affinis,H_torquata),((((H_catalinae,sp_nov_2),sp_nov_1),(H_chlorophaea_chlorophaea,(H_chlorophaea_deserticola_2,(H_chlorophaea_deserticola_1,H_chlorophaea_loreala)))),H_unaocularus)),((H_ochrorhyncha_baueri,H_ochrorhyncha_ochrorhyncha),(H_ochrorhyncha_klauberi,H_ochrorhyncha_nuchalata))),(H_jani_texana_Pop1,(H_jani_texana_Pop2,H_jani_texana_Pop3))),H_slevini),Outgroup);"
+
+# Function that combines all sub-populations of  if more than popNumThreshold populations
+combinePopsFunction = function(popToCombineName, popCombineRename, popNumThreshold) {
+  if(length(unique(gadmaPopMap$Population)) > popNumThreshold) {
+    gadmaPopMap$Population[grepl(popToCombineName, gadmaPopMap$Population)] = popCombineRename
+    return(gadmaPopMap) 
+}else{
+  return(gadmaPopMap) 
+  }
+}
+
+# Following set renames all populations containing popToCombineName, renames them as popCombineRename if there is more than popNumThreshold populations in the subset. Maximum population number in Gadma is 3. Note that popToCombineName should be string within popCombineRename.
+combineTF = TRUE
+popToCombineName = "chlorophaea"
+popCombineRename = "H_chlorophaea"
+popNumThreshold = 3
+  
+# List of commands that can be directly pasted into cluster terminal to run manually
+clusterGadmaCommandList = c()
+
+################################################################################ 
+  
+for (currentBestFilterGadma in gadmaBestFilterList){
+
+  # Name of current popsOfInterest group name
+  currentSubset = str_extract(currentBestFilterGadma, paste0("(?<=", rawString, ").*?(?=Outgroup)"))
+
+  # Read in VCF to do modifications
+  currentVCFGadma = read.vcfR(paste0(folderPath, VCFPath, currentBestFilterGadma, ".vcf"))
+  
+  currentVCFSamples = colnames((currentVCFGadma)@gt)[-1]
+  filteredVCFSamples = currentVCFSamples[!(currentVCFSamples %in% samplesToRemoveGadma)]
+  
+  # Subset the currentVCFGadma samples to remove samplesToRemoveGadma (Subset cols, appending TRUE to beginning to include 'FORMAT' header col)
+  vcfSubset = currentVCFGadma[, c(TRUE, colnames(currentVCFGadma@gt)[-1] %in% filteredVCFSamples)] 
+
+  vcfGadmaPath = paste0(folderPath, gadmaPath, currentBestFilterGadma,".vcf")
+  
+  # Save modified VCF to vcfGadmaPath
+  con = file(vcfGadmaPath, "w")
+  writeLines(vcfSubset@meta,con) 
+  bodyDF = as.data.frame(vcfSubset@fix)
+  colnames(bodyDF)[colnames(bodyDF) == 'CHROM'] <- '#CHROM' 
+  
+  write.table(cbind(bodyDF, vcfSubset@gt),file = con, sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE) 
+  close(con) 
+  
+  gadmaPopMap = initializeGadmaPopMap
+  gadmaPopMap = gadmaPopMap[gadmaPopMap$Sample %in% filteredVCFSamples,]
+  
+  # If specified, combine populations into one
+  if (combineTF){
+    gadmaPopMap = combinePopsFunction(popToCombineName, popCombineRename, popNumThreshold)
+  }
+  rownames(gadmaPopMap) = NULL
+
+  
+  gadmaParamsPath = paste0(folderPath, gadmaPath, currentSubset, "Params.txt")
+  
+  gadmaPopMapSubsetFilePath = paste0(folderPath, gadmaPath, currentSubset, 'Popmap.txt')
+  gadmaPopMapClusterSubsetFilePath = paste0(gadmaRunLocation, gadmaPath, currentSubset, 'Popmap.txt')
+  unlink(gadmaPopMapSubsetFilePath, recursive = TRUE, force = TRUE)
+  con = file(gadmaPopMapSubsetFilePath, "w")
+  write.table(cbind(gadmaPopMap$Sample, gadmaPopMap$Population), file = con, sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE)
+  close(con) 
+  
+  # Now run easySFS. Pipe yes because in some cases there are samples in the VCF that aren't in the population map. These would have been excluded in the corresponding DAPC run, so they don't have an assigned population, thus aren't relevant here so we can remove. They might not have been in the DAPC run because they were filtered out.
+  easySFSPreview = system(paste0('echo "yes" | ', pythonPath, " ", easySFSPath," -i ", folderPath, gadmaPath, currentBestFilterGadma, ".vcf -p ", gadmaPopMapSubsetFilePath, " --preview"), intern = TRUE)
+
+  # Extract population names
+  easySFSPopNames = grep(paste0("^(", paste(unique(gadmaPopMap$Population),collapse="|"),")"), easySFSPreview, value=TRUE)
+  
+  #Extract numeric data
+  popData = grep("^\\(", easySFSPreview, value=TRUE)
+  
+  #Convert extracted data into a list of matrices
+  popList = lapply(popData,function(x){
+    pairs = unlist(strsplit(x,"\\t"))  # Split at tab characters
+    pairs = gsub("[()]", "", pairs)    # Remove parentheses
+    pairs = strsplit(pairs,", ")       # Split into (sample, sites)
+    do.call(rbind,lapply(pairs,function(y)as.numeric(y))) # Convert to numeric matrix
+  })
+  
+  # Find number of samples per population to use to maximize sites
+  maxSitesList=c()
+  PopNumForMaxSitesList=c()
+  for (easySFSPops in 1:length(easySFSPopNames)){
+    maxSitesIndex = which.max(popList[[easySFSPops]][,2])
+    maxSitesList = c(maxSitesList,popList[[easySFSPops]][,2][maxSitesIndex])
+    PopNumForMaxSitesList = c(PopNumForMaxSitesList,popList[[easySFSPops]][,1][maxSitesIndex])
+  }
+  
+  easySFSMaxSites = data.frame(PopNumForMaxSitesList, maxSitesList)  
+  rownames(easySFSMaxSites) = easySFSPopNames
+
+  
+  # Grab the populationLabels in the correct order (most ancestral split first) by pulling from tree. Keep only the tips that match the population list
+  uniquePops = unique(gadmaPopMap$Population)
+  
+  # Read tree
+  fullTree = read.tree(text = treeString)
+  
+  # Root tree
+  outgroupPopName = outgroupPopulation
+  if (outgroupPopName %in% gadmaPopMap$PopulationDAPC) {
+    fullTree = root(fullTree, outgroup = outgroupPopName, resolve.root = TRUE)
+  }
+  
+
+  # Identify tips that contain any of the unique population names (case-insensitive)
+  matchedTips = fullTree$tip.label[sapply(fullTree$tip.label, function(tip) {
+    any(sapply(uniquePops, function(pop) grepl(pop, tip, ignore.case = TRUE)))
+  })]
+  
+  # Prune tree to only keep matchedTips
+  currentTree = keep.tip(fullTree, matchedTips)
+
+
+# If combining populations into one, collapse them into a single tip
+if (combineTF & length(unique(matchedTips)) > popNumThreshold) {
+  # Rename all relevant tips
+  currentTree$tip.label[grepl(popToCombineName, currentTree$tip.label)] = popCombineRename
+  
+  # Identify duplicated tips and remove all but one
+  tipsToRemove = setdiff(which(currentTree$tip.label == popCombineRename), min(which(currentTree$tip.label == popCombineRename)))
+  
+  # Remove tips from tree
+  if (length(tipsToRemove) > 0) {
+    currentTree = drop.tip(currentTree, tipsToRemove)  
+  }
+  
+  # Reorder the tips so most ancestral is first. Gadma requires this order.
+  orderedTips = currentTree$tip.label[rev(order(node.depth.edgelength(currentTree)[1:Ntip(currentTree)]))]
+  
+  populationLabels = paste0("[", paste(orderedTips, collapse = ","), "]")
+} else {
+  populationLabels = paste0("[", paste(matchedTips, collapse = ","), "]")
+}
+
+
+  
+  # Define rest of parameter values
+  outputDir = paste0(gadmaRunLocation, gadmaPath)
+  inputData = paste0(gadmaRunLocation, gadmaPath, currentBestFilterGadma,".vcf,", gadmaPopMapClusterSubsetFilePath)
+  
+  # Print projections onto x # of samples per population based on highest number of sites conserved. Should already be in proper order, but just in case, use match to order correctly with populationLabels
+  projections = paste0("[", paste0(easySFSMaxSites$PopNumForMaxSitesList[match(gsub("\\[|\\]", "", populationLabels) |> strsplit(",") |> unlist() |> trimws(), rownames(easySFSMaxSites))], collapse = ","), "]")
+  outgroup="False"
+  
+  # seqL is calculated in VCF Filtering chunk and saved to a txt file. Pull in here.
+  seqLData = read.delim(paste0(folderPath, gadmaPath, "seqL.txt"), header=TRUE, sep="\t", stringsAsFactors=FALSE)
+  
+  # Find the matching row
+  seqL = seqLData$SeqL[seqLData$VCFFileName == currentBestFilterGadma]
+  
+    sequenceLength = seqL
+    linkedSNPs = "False" 
+ # bootstrapDir="Null"
+  engine = "moments"
+  #pts="[20, 30, 40]" #max number of samples per pop
+  #relativeParams="False"
+    #theta0="Null"
+  #recombinationRate="Null"
+  generationTime = "3"
+  mutationRate = as.character(0.00081*as.numeric(generationTime)/1e6) #Using fig2 from thamnophis mutation rate in https://academic.oup.com/gbe/article/10/8/2110/5061318
+  #customFilename="Null"
+  #lowerBound="Null"
+  #upperBound="Null"
+  #paramIdentifiers="Null"
+    initialStructure = paste0("[", paste(rep(1, length(unique(gadmaPopMap$Population))), collapse=","), "]")
+    finalStructure = initialStructure
+    #onlySudden="False"
+    #dynamics="[Sud, Lin, Exp]"
+    #noMigrations="False"
+    #symmetricMigrations="False"
+    #migrationMasks="Null"
+    #selection="False"
+    #dominance="False"
+    #splitFractions="True"
+    #inbreeding="False"
+    #ancestralSizeParam="False"
+    #lowerBoundFirstSplit="Null"
+    #upperBoundFirstSplit="Null"
+    #lowerBoundSecondSplit="Null"
+    #upperBoundSecondSplit="Null"
+    #localOptimizer="BFGS_log"
+    #storeEveryN=0
+    plotEngine = "moments"
+    #drawEveryN=0
+    drawUnits = "thousand years"
+    #Vmin="generations"
+    #silence="False"
+    #verbose=1
+    numRepeats = 25
+    numProcesses = 25
+    #resumeFrom="Null"
+    #onlyModels="False"
+        
+    
+  # Create the parameter lines
+  params = c(
+    paste("Output directory:",outputDir),
+    paste("Input data:",inputData),
+    paste("Population labels:",populationLabels),
+    paste("Projections:",projections),
+    paste("Outgroup:",outgroup),
+    paste("Sequence length:",sequenceLength),
+    paste("Linked SNP's:",linkedSNPs),
+    #paste("Directory with bootstrap:",bootstrapDir),
+    paste("Engine:",engine),
+    #paste("Pts:",pts),
+    #paste("Relative parameters:",relativeParams),
+    #paste("Theta0:",theta0),
+    paste("Mutation rate:",mutationRate),
+    #paste("Recombination rate:",recombinationRate),
+    paste("Time for generation:",generationTime),
+    #paste("Custom filename:",customFilename),
+    #paste("Lower bound:",lowerBound),
+    #paste("Upper bound:",upperBound),
+    #paste("Parameter identifiers:",paramIdentifiers),
+    paste("Initial structure:",initialStructure),
+    paste("Final structure:",finalStructure),
+    #paste("Only sudden:",onlySudden),
+    #paste("Dynamics:",dynamics),
+    #paste("No migrations:",noMigrations),
+    #paste("Symmetric migrations:",symmetricMigrations),
+    #paste("Migration masks:",migrationMasks),
+    #paste("Selection:",selection),
+    #paste("Dominance:",dominance),
+    #paste("Split fractions:",splitFractions),
+    #paste("Inbreeding:",inbreeding),
+    #paste("Ancestral size as parameter:",ancestralSizeParam),
+    #paste("Lower bound of first split:",lowerBoundFirstSplit),
+    #paste("Upper bound of first split:",upperBoundFirstSplit),
+    #paste("Lower bound of second split:",lowerBoundSecondSplit),
+    #paste("Upper bound of second split:",upperBoundSecondSplit),
+    #paste("Local optimizer:",localOptimizer),
+    #paste("Print models' code every N iteration:",storeEveryN),
+    paste("Model plot engine:",plotEngine),
+    #paste("Draw models every N iteration:",drawEveryN),
+    paste("Units of time in drawing:",drawUnits),
+    #paste("Vmin:",Vmin),
+    #paste("Silence:",silence),
+    #paste("Verbose:",verbose),
+    paste("Number of repeats:",numRepeats),
+    paste("Number of processes:",numProcesses)
+    #paste("Resume from:",resumeFrom),
+    #paste("Only models:",onlyModels)
+  )
+  
+  # Write to the file
+  writeLines(params, gadmaParamsPath)
+  
+  
+  # Run Gadma if the gadmaRunLocation is set to folderPath, otherwise, 
+  if (identical(gadmaRunLocation, folderPath)){
+    system(paste0(gadmaSWPath, " -p ", gadmaParamsPath," -o ", folderPath, gadmaPath, "Output", currentSubset))
+  outputPath = paste0(folderPath, gadmaPath, currentBestFilterGadma, ".png")
+  pythonScript = paste0(pythonPath, " ", folderPath, gadmaPath, "Output", currentSubset, "/best_aic_model_moments_code.py")
+
+  # Run the Python script
+  #system(pythonScript, wait = TRUE) 
+  #png(outputPath, width = 800, height = 600, res = 100)
+  
+  }else{
+        # If running in the cluster, this string can be used to execute after moving entire folder over.
+        clusterGadmaCommandList = c(clusterGadmaCommandList, paste0(gadmaClusterSWPath,  " -p ", clusterFolderPath, gadmaPath, currentSubset, "Params.txt"," -o ", clusterFolderPath, gadmaPath, "Output", currentSubset))
+      }
+  
+  #If running in the cluster, must plot after gadma finishes. For example:
+  #python /home/aaslam/Gadma/Outputchlorophaea/best_aic_model_moments_code.py
+
+}
+
+
+# Move entire Gadma folder to cluster, and open a screen in the cluster if gadmaRunLocation is set to the clusterFolderPath and run clusterGadmaCommands. Might need to first run conda activate gadma in the screen. 
+clusterGadmaCommands = paste(clusterGadmaCommandList, collapse = " & ")
+
+# After running with (had to edit gadma plotting file code to make the axis label font sizes fit), go into each output folder and run python best_aic_model_moments_code.py which generates plot in that folder
+
+
+
+```
+
+</details>
+
+<br>
+<br>
+Here is an example of an output GADMA demographic history model.
+<br>
+<br>
+
+![gadma](https://github.com/mellamoadam/CladoScope/blob/main/Images/gadma.png)
+<br>
+<br>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# GADMA
+GADMA is a tool used to infer demographic history using the allele frequency spectra to estimate population history parameters. This approach helps reveal historical events like population splits, expansions, and gene flow that shaped current genetic variation. Here, we create text files needed to run GADMA. This analysis can be costly in terms of computational power, therefore, I recommend to run with `gadmaRunLocation` set to `clusterFolderPath`. This alters how the run files reference each other, and assumes the folder will be moved to the `clusterFolderPath` location.
+<br>
+<br>
+<details>
+<summary>Gadma</summary>
 <br>
 <br>
           
@@ -2635,14 +2997,11 @@ We used Multiple Matrix Regression with Randomization (MMRR) to test for isolati
 
 
 
-
-
-
-
-
 # References
 
 Alexander DH, Novembre J, Lange K. Fast model-based estimation of ancestry in unrelated individuals. Genome Res. 2009 Sep;19(9):1655-64. doi: 10.1101/gr.094052.109.
+
+Malinsky M, Matschiner M, Svardal H. Dsuite - Fast D-statistics and related admixture evidence from VCF files. Mol Ecol Resour. 2021 Feb;21(2):584-595. doi: 10.1111/1755-0998.13265.
 
 Wang IJ. Examining the full effects of landscape heterogeneity on spatial genetic variation: a multiple matrix regression approach for quantifying geographic and ecological isolation. Evolution. 2013 Dec;67(12):3403-11. doi: 10.1111/evo.12134.
 

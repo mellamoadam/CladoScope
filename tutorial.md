@@ -1,5 +1,9 @@
 # Overview
-This tutorial provides a walkthrough of the CladoScope framework, developed to address the challenges of resolving population structure in taxa with deep divergence, high diversity, and complex biogeography such as the genus *Hypsiglena*. In systems like this, traditional population genomics approaches often struggle due to extensive and hierarchical structure, where multiple levels of divergence and cryptic lineages obscure clear genetic assignment. CladoScope implements an iterative, subset-based strategy that begins with a user-defined population map informed by prior knowledge. This map guides initial filtering and clustering, which are then refined through rounds of phylogenetic and clustering analyses. As population groupings are reassessed and updated, the workflow enables increasingly accurate and biologically meaningful subsetting. These refined subsets allow for higher-resolution genomic analyses, offering clearer insight into evolutionary relationships and population boundaries. The approach is especially valuable for researchers working with complex, deeply structured taxa and provides a replicable method for dissecting difficult population genomic patterns.
+This tutorial provides a walkthrough of the CladoScope framework, developed to address the challenges of resolving population structure in taxa with deep divergence, high diversity, and complex biogeography such as the genus *Hypsiglena*. In systems like this, traditional population genomics approaches often struggle due to extensive and hierarchical structure, where multiple levels of divergence and cryptic lineages obscure clear genetic assignment. 
+<br>
+CladoScope implements an iterative, subset-based strategy that begins with a user-defined population map informed by prior knowledge. This map guides initial filtering and clustering, which are then refined through rounds of phylogenetic and clustering analyses. Performing the analysis in this iterative way is important because it provides a starting point to run the code, evaluate which filtering combinations yield the most optimal results, and then refine the population map accordingly before re-running the analysis for improved accuracy. 
+<br>
+As population groupings are reassessed and updated, the workflow enables increasingly accurate and biologically meaningful subsetting. These refined subsets allow for higher-resolution genomic analyses, offering clearer insight into evolutionary relationships and population boundaries. The approach is especially valuable for researchers working with complex, deeply structured taxa and provides a replicable method for dissecting difficult population genomic patterns.
 <br>
 
 # Load Packages
@@ -127,6 +131,7 @@ library(magick)
 
 <br>
 Now we can define and create local paths to user folders and software execution files that keep the results and temporary files organized. Must be adjusted to your own system.
+<br>
 <details>
 <summary>Define and create paths code</summary>
 <br>
@@ -225,6 +230,7 @@ knitr::opts_knit$set(root.dir = folderPath)
 # Pull Raw Data
 <br>
 Pulling in raw data files including `coordinateFile` that contains sample coordinates, VCF file, map files (.shp and geojson for boundaries, .tiff for terrain). Includes a query for iNaturalist if specified that will later include citizen science observations as gray points in background of DAPC map.
+<br>
 <details>
 <summary>Pull raw data code</summary>
 <br>
@@ -270,6 +276,7 @@ inatCoords = read.csv(inatCoordsFile)
 # Organize Map-Related Files
 <br>
 We must convert terrain raster into RGB colors for map representation along with formatting coordinates file and map bounding boxes for plotting compatibility. We also subset maps for the political boundaries necessary for plotting our samples.
+<br>
 <details>
 <summary>Map-related organization code</summary>
 <br>
@@ -510,9 +517,10 @@ write.table(
 
 
 
-
+This section outlines how to perform VCF filtering using a grid-based approach, systematically varying thresholds across multiple parameters (i.e. MAC, MAF, individual missingness, site missingness, depth). By testing a wide range of combinations, we can identify filter sets that produce the most stable and informative outputs for downstream analysis. A critical component is defining `popsOfInterest`, which can start as a hypothesis based on monophyletic groups or closely related populations and then be refined iteratively as results from the concatenated tree, DAPC, and PCA are reviewed.
 
 <details>
+<br>
 <summary>Filtering triage code</summary>
 <br>
           
@@ -522,7 +530,6 @@ removeIndels = FALSE # Doesn't change VCF because all SNPs
 replaceMultiallelic = TRUE # Used to change the genotype of each indiv at each locus if there is an allele that is not ref or alt present.
 missingSitesThreshold = c(0.6, 0.7) # Lower is more stringent. This is max missing sites threshold
 missingIndivsThreshold = 0.92 #This is the threshold used for all samples besides outgroupSamples. If any sample in outgroupSamples has more than missingIndivsThreshold, it is still included in subset. Only applicable when includeOutgroup = TRUE.
-#resetMissingIndivsToOutgroupLimit = TRUE # If this and OutgroupIncludedTF are T, missingIndivsThreshold is reset to be the minimum threshold that would include at least one outgroup sample. For example, if missingIndivsThreshold is 0.8 and the outgroup samples have indiv missingness values of 0.84 and 0.86, then this variable makes the actual threshold 0.84. This true value is reflected in the final VCF file name.
 MACMinThreshold = 3
 MAFMinThreshold = 0.05
 MinMeanDPThreshold = 6
@@ -537,10 +544,7 @@ includeOutgroup = c(TRUE,FALSE)
 popsOfInterest = list(c("ochrorhyncha"),
   c("jani"),
   c("chlorophaea"),
-  #c("chlorophaea","sp_nov_1"),
-  #c("chlorophaea","sp_nov_2"),
   c("chlorophaea","sp_nov_1","sp_nov_2"),
-  #c("torquata","ochrorhyncha_nuchalata", "ochrorhyncha_klauberi", "ochrorhyncha_ochrorhyncha","chlorophaea","jani_texana","sp_nov_1","sp_nov_2","slevini"),
   c("torquata","chlorophaea","sp_nov_1","sp_nov_2","unaocularus","catalinae"),
   c("torquata","ochrorhyncha","chlorophaea","jani","sp_nov","slevini","tanzeri","affinis","catalinae","unaocularus", "hybrid")
 )
@@ -548,10 +552,7 @@ popsOfInterest = list(c("ochrorhyncha"),
 names(popsOfInterest) = c("Ochrorhyncha", 
                            "Jani", 
                            "Chlorophaea", 
-                           #"ChlorophaeaSpNov1",
-                           #"ChlorophaeaSpNov2",
                            "ChlorophaeaSpNov1SpNov2",
-                           #"AllMajorGroups",
                            "ChlorophaeaSpNov1SpNov2TorquataUnaocularusCatalinae",
                            "All"
 )
@@ -1177,7 +1178,7 @@ writeLines(c("VCFFileName\tSeqL" , paste(VCFFileNameList, seqLList, sep = "\t"))
 
 
 
-
+<br>
 <details>
 <summary>First we install and load necessary packages</summary>
 <br>
@@ -1191,7 +1192,7 @@ writeLines(c("VCFFileName\tSeqL" , paste(VCFFileNameList, seqLList, sep = "\t"))
 
 
 
-
+<br>
 <details>
 <summary>First we install and load necessary packages</summary>
 <br>
@@ -1205,7 +1206,7 @@ writeLines(c("VCFFileName\tSeqL" , paste(VCFFileNameList, seqLList, sep = "\t"))
 
 
 
-
+<br>
 <details>
 <summary>First we install and load necessary packages</summary>
 <br>
@@ -1219,7 +1220,7 @@ writeLines(c("VCFFileName\tSeqL" , paste(VCFFileNameList, seqLList, sep = "\t"))
 
 
 
-
+<br>
 <details>
 <summary>First we install and load necessary packages</summary>
 <br>

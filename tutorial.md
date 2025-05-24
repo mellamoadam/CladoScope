@@ -1,9 +1,12 @@
 # Overview
 This tutorial provides a walkthrough of the CladoScope framework, developed to address the challenges of resolving population structure in taxa with deep divergence, high diversity, and complex biogeography such as the genus *Hypsiglena*. In systems like this, traditional population genomics approaches often struggle due to extensive and hierarchical structure, where multiple levels of divergence and cryptic lineages obscure clear genetic assignment. 
 <br>
+<br>
 CladoScope implements an iterative, subset-based strategy that begins with a user-defined population map informed by prior knowledge. This map guides initial filtering and clustering, which are then refined through rounds of phylogenetic and clustering analyses. Performing the analysis in this iterative way is important because it provides a starting point to run the code, evaluate which filtering combinations yield the most optimal results, and then refine the population map accordingly before re-running the analysis for improved accuracy. 
 <br>
+<br>
 As population groupings are reassessed and updated, the workflow enables increasingly accurate and biologically meaningful subsetting. These refined subsets allow for higher-resolution genomic analyses, offering clearer insight into evolutionary relationships and population boundaries. The approach is especially valuable for researchers working with complex, deeply structured taxa and provides a replicable method for dissecting difficult population genomic patterns.
+<br>
 <br>
 
 # Load Packages

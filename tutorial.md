@@ -1813,7 +1813,7 @@ file.remove(  AdmixtureBarSubsetsPDFList  )
 
 <br>
 <br>
-![ADMIXTURE](https://raw.githubusercontent.com/mellamoadam/CladoScope/main/ADMIXTURE.png)
+![ADMIXTURE](https://github.com/mellamoadam/CladoScope/blob/main/ADMIXTURE.png)
 <br>
 <br>
 The plots above is an example of the results generated from ADMIXTURE analysis. Ancestral proportions are plotted as pie charts based on sampling locations. Various ancestral component values (K) are plotted for comparison purposes.  
@@ -1902,6 +1902,12 @@ PopMapDAPC = grpDFPopmapCoordsDFAllColorCoordination[, c("Sample", "PopulationDA
 ```
 </details>
 
+<br>
+<br>
+![ColorCoordinated](https://github.com/mellamoadam/CladoScope/blob/main/ColorCoordinated.png)
+<br>
+<br>
+The plots above is an example of the results generated from ADMIXTURE analysis. Ancestral proportions are plotted as pie charts based on sampling locations. Various ancestral component values (K) are plotted for comparison purposes.  
 
 
 

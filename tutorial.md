@@ -275,7 +275,6 @@ inatCoords = read.csv(inatCoordsFile)
 </details>
 
 ## Organize Map-Related Files
-<br>
 We must convert terrain raster into RGB colors for map representation along with formatting coordinates file and map bounding boxes for plotting compatibility. We also subset maps for the political boundaries necessary for plotting our samples.
 <br>
 <br>
@@ -1155,8 +1154,6 @@ For each combination of filter thresholds, a series of charts and analyses are g
 <br>
 <br>
 ## Filter Set Selection
-<br>
-<br>
 Using the charts above, we select the best filter sets for our dataset. 
 <br>
 <br>

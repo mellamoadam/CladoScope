@@ -371,7 +371,11 @@ This is a section that will be iterated by the user after subsequent analyses. T
           2. `hybridSamples`: this variable can be manually changed after running concatenated trees, PCA, DAPC, and ADMIXTURE to define a sample as being between observed populations.
           3. `popChanges`: this variable can be manually changed after running concatenated trees, PCA, and DAPC to reclassify a sample's population.
 <br>
-Note that the USER INPUTS section of the code below reflects population assignments after iterative assignment. Initially, `hybridSamples` and `popChanges` were input as empty vectors. After running concatenated trees, PCA, DAPC, and ADMIXTURE, samples that were better classified as being in other or between two populations became more clear. Rerun these steps until the population map has converged and remains unchanged. In the example below, this required three iterations, but may take a few more for more complex systems. In the example shown, the subset for *Hypsiglena jani* showed clear   `janiGroups`
+Note that the USER INPUTS section of the code below reflects population assignments after iterative assignment. Initially, `hybridSamples` and `popChanges` were input as empty vectors. After running concatenated trees, PCA, DAPC, and ADMIXTURE, samples that were better classified as being in other or between two populations became more clear. Rerun these steps until the population map has converged and remains unchanged. In the example below, this required three iterations, but may take a few more for more complex systems.
+
+
+
+In the example shown, the subset for *Hypsiglena jani* showed clear   `janiGroups`
           
           
 

@@ -504,6 +504,7 @@ write.table(
 </details>
 
 
+# Filter Triage
 
 This section outlines how to perform VCF filtering using a grid-based approach, systematically varying thresholds across multiple parameters (i.e. MAC, MAF, individual missingness, site missingness, depth). By testing a wide range of combinations, we can identify filter sets that produce the most stable and informative outputs for downstream analysis. A critical component is defining `popsOfInterest`, which can start as a hypothesis based on monophyletic groups or closely related populations and then be refined iteratively as results from the concatenated tree, DAPC, and PCA are reviewed. 
 <details>
@@ -1163,9 +1164,475 @@ For each combination of filter thresholds, a series of charts and analyses are g
 
 <br>
 <br>
-## Filter Set Selection Charts
 
+## Filter Set Selection
+
+
+<br>
+<br>
+Using the charts above, we select the best filter sets for our dataset. 
+<br>
+<br>
+
+<details>
+<summary>Filter Selection</summary>
+<br>
+          
+```r
+
+################################# USER INPUTS  #################################
+# Set the values determined to be the "best" filter set based on filter comparison pdf. This block assumes that each subset (of samples) has the same "best" conditions with or without MAC/MAF filters and with or without outgroup samples.
+removeIndelsBest = FALSE
+replaceMultiallelicBest = TRUE
+missingSitesThresholdBest = 0.6
+missingSitesThresholdBestConcatenatedTree = 0.7
+missingIndivsThresholdBest = 0.92
+MACMinThresholdBest = 3
+MAFMinThresholdBest = 0.05
+MinMeanDPThresholdBest = 6
+MaxMeanDPThresholdBest = 9
+MinDPThresholdBest = 5
+MaxDPThresholdBest = 12
+thinningFilterBest = 200
+
+################################################################################
+
+bestFilterSetsOutgroupOmittedNoMACMAF = c()
+bestFilterSetsOutgroupIncludedNoMACMAF = c()
+bestFilterSetsOutgroupOmittedWithMACMAF = c()
+bestFilterSetsOutgroupIncludedWithMACMAF = c()
+
+for (populations in seq_along(popsOfInterest)) {
+  for (OutgroupIncludedTF in includeOutgroup){
+      popName = names(popsOfInterest)[populations]
+
+      FilterStringWithMACMAF = paste0(rawString,popName,"Outgroup",OutgroupIncludedTF,"RemoveIndels",removeIndelsBest,"ReplaceMultiallelic",replaceMultiallelicBest,"MissingSites",missingSitesThresholdBest,"MissingIndiv",missingIndivsThresholdBest,"MAC",MACMinThreshold,"MAF",MAFMinThreshold,"MinMeanDP",MinMeanDPThreshold,"MaxMeanDP",MaxMeanDPThreshold,"MinDP",MinDPThreshold,"MaxDP",MaxDPThreshold,"Thin",thinningFilter)
+
+      FilterStringNoMACMAF = paste0(rawString,popName,"Outgroup",OutgroupIncludedTF,"RemoveIndels",removeIndelsBest,"ReplaceMultiallelic",replaceMultiallelicBest,"MissingSites",missingSitesThresholdBest,"MissingIndiv",missingIndivsThresholdBest,"MACNoneMAFNone","MinMeanDP",MinMeanDPThreshold,"MaxMeanDP",MaxMeanDPThreshold,"MinDP",MinDPThreshold,"MaxDP",MaxDPThreshold,"Thin",thinningFilter)
+      
+      if (OutgroupIncludedTF) {
+        bestFilterSetsOutgroupIncludedWithMACMAF = c(bestFilterSetsOutgroupIncludedWithMACMAF,FilterStringWithMACMAF)
+        bestFilterSetsOutgroupIncludedNoMACMAF = c(bestFilterSetsOutgroupIncludedNoMACMAF,FilterStringNoMACMAF)
+      }else{
+        bestFilterSetsOutgroupOmittedWithMACMAF = c(bestFilterSetsOutgroupOmittedWithMACMAF,FilterStringWithMACMAF)
+        bestFilterSetsOutgroupOmittedNoMACMAF = c(bestFilterSetsOutgroupOmittedNoMACMAF,FilterStringNoMACMAF)
+      }
+      
+      
+    }
+}
+
+bestFilters = c(bestFilterSetsOutgroupOmittedNoMACMAF,bestFilterSetsOutgroupIncludedNoMACMAF,bestFilterSetsOutgroupOmittedWithMACMAF,bestFilterSetsOutgroupIncludedWithMACMAF)
+
+
+
+################################# USER INPUTS  #################################
+# If any additional samples are desired to be removed from BED file, use the code below to save as outgroupSamplesPath and removed in the loop
+RemoveSamplesBed=c()
+
+# Files to convert to Bed/Fam/Bim
+convertToBed=bestFilters
+
+# Files to convert to PHY/Nexus/Bin.Nexus
+convertToPhy_Nex_BinNex = list.files(path=paste0(folderPath, VCFPath),pattern=paste0(rawString,"AllOutgroupTRUE.+vcf"))
+
+
+# Files to convert to Traw
+convertToTraw = bestFilterSetsOutgroupOmittedWithMACMAF
+
+################################################################################
+
+# Convert VCF to Bed/Fam/Bim
+if(length(RemoveSamplesBed)>0){
+  RemoveSamplesFromBedTXTPath=paste0(folderPath,admixturePath, rawString,"RemoveSamplesBed.txt")
+  header="#FID IID PID MID Sex Phenotype"
+  fam_data=data.frame(FID = rep(0, length(RemoveSamplesBed)),IID = RemoveSamplesBed,PID = rep(0, length(RemoveSamplesBed)),MID = rep(0, length(RemoveSamplesBed)),Sex = rep(1, length(RemoveSamplesBed)),Phenotype = rep(-9, length(RemoveSamplesBed)))
+  outputLines=c(header, apply(fam_data, 1, paste, collapse = " "))
+  writeLines(outputLines, RemoveSamplesFromBedTXTPath)
+}
+
+
+for (filterSet in convertToBed){
+
+  currentVCFPath=paste0(folderPath,VCFPath,filterSet,".vcf")
+
+  bedSubsetPath=paste0(folderPath,bedPath,filterSet)
+
+    #After reformatting the CHROM col, the following requires "--chr-set", which is specified as 95 and works with all files for some reason?
+  system(paste0("plink --vcf ",currentVCFPath," --make-bed --out ",bedSubsetPath," --const-fid 0 --allow-extra-chr 0"))
+  
+  
+  # Remove samples (if applicable) from bed file, save to temp bed/fam/bim files, then overwrite bedSubsetPath
+  if(length(RemoveSamplesBed)>0){
+    system(paste0("plink --bfile ", bedSubsetPath," --remove ", RemoveSamplesFromBedTXTPath," --make-bed ", "--out ", paste0(bedSubsetPath,"SamplesRemoved")))
+    
+    # Overwrite temp bed/fam/bim files to bedSubsetPath
+    system(paste0("mv ",paste0(bedSubsetPath,"SamplesRemoved",".bed")," ",paste0(bedSubsetPath,".bed")))
+    system(paste0("mv ",paste0(bedSubsetPath,"SamplesRemoved",".bim")," ",paste0(bedSubsetPath,".bim")))
+    system(paste0("mv ",paste0(bedSubsetPath,"SamplesRemoved",".fam")," ",paste0(bedSubsetPath,".fam")))
+    
+    # Remove all temp files (.log/.nosex)
+    file.remove(  list.files(path=paste0(folderPath,bedPath), pattern=paste0("\\.(nosex|log)$"), all.files=TRUE, full.names=TRUE)  )
+  }
+
+}
+
+
+```
+</details>
+
+## Filter Set VCF Conversion
+<br>
+<br>
+The code below will convert the selected filter sets to the necessary file types for future analyses (.nexus, .bin.nexus, .traw, .phy).  
+<br>
+<br>
+
+<details>
+<summary>VCF Conversion</summary>
+<br>
+          
+```r
+# Convert VCF to PHY, Nexus, and Bin.Nexus
+for (filterSet in convertToPhy_Nex_BinNex){
+    subsetAndFilterString=str_sub(filterSet,end=-5)
+    system(paste0("cd ",phylipCoversionFolderPath, " && ", pythonPath," vcf2phylip.py --input ",folderPath, VCFPath, filterSet," -n -b"))
+
+    #Automatic .phy naming system a bit strange so identify the file 
+    currentPhyFile=list.files(path=phylipCoversionFolderPath,pattern=paste0(subsetAndFilterString,".+phy"))
+    currentNexusFile=list.files(path=phylipCoversionFolderPath, pattern = paste0(subsetAndFilterString,".+nexus"))
+    currentNexusFile=currentNexusFile[!grepl("\\.bin\\.nexus$", currentNexusFile)] # Drop .bin.nexus files
+    currentBinaryNexusFile=list.files(path = phylipCoversionFolderPath, pattern=paste0(subsetAndFilterString, ".+.bin.nexus"))
+    
+    # Move to working folder
+    system(paste0("mv ", phylipCoversionFolderPath,"/", currentPhyFile," ",folderPath, PHYPath, subsetAndFilterString, ".phy"))
+    system(paste0("mv ", phylipCoversionFolderPath,"/",currentNexusFile," ",folderPath, nexusPath, subsetAndFilterString, ".nexus"))
+    system(paste0("mv ", phylipCoversionFolderPath,"/", currentBinaryNexusFile," ",folderPath, binaryNexusPath, subsetAndFilterString, ".bin.nexus"))
+
+}
+
+
+# Convert VCF to Traw
+for (filterSet in convertToTraw){
+    system(paste0("plink --vcf ",folderPath,VCFPath,filterSet,".vcf --recode A-transpose --out ",folderPath,TrawPath,filterSet," --const-fid 0 --allow-extra-chr --chr-set 95"))
+    file.remove(  list.files(path=paste0(folderPath,TrawPath), pattern=paste0("\\.(nosex|log)$"), all.files=TRUE, full.names=TRUE)  )
+}
+
+
+```
+</details>
+
+
+# Clustering
+
+<details>
+<summary>PCA, k-means, and DAPC</summary>
+<br>
+          
+```r
+
+################################# USER INPUTS  #################################
+# Set list of VCF subset file paths to perform PCA and DAPC on (generally no outgroup and MAC/MAF filters on)
+PCADAPCBestFilterList = bestFilterSetsOutgroupOmittedWithMACMAF
+
+# If any additional samples are desired to be removed
+RemoveSamplesPCADAPC=c()
+
+# Take the number of PCs that explain this proportion of total variance for feeding into LDA
+cumulativeSumPCACutoff = 0.8 
+      
+# Upper limit of number of populations to split subset into for K-means. For example, if we think the subset is 5 populations, we can test K=2:8 with expression below.
+KLowerLimitKMeans=2
+calculateKMeansSeq = function(populationLength){
+  KLowerLimitKMeans:round(populationLength+sqrt(populationLength)*3)
+}
+
+# The code uses K-means to find the best number of clusters. To manually set for each subset, use the code below:
+manualDAPCGroupNumSelection = FALSE
+DAPCGroupNums=list()
+DAPCGroupNums$Subset = str_extract(PCADAPCBestFilterList, paste0("(?<=",rawString,").*?(?=Outgroup)"))
+
+DAPCGroupNums$GroupNum = c(3,3,3,4,4,5,13,17)
+
+# Population map to use
+PCADAPCPopMap = matchDFJaniSplit
+
+KMeansSeed = 1
+
+# Remove hybrids defined in hybridSamples. Already omitted from all subsets besides the subset "All"
+removeHybrids = TRUE
+
+################################################################################
+
+# Initialize df that will contain all DAPC assignments for all subsets
+DAPCAssignments = data.frame(Subset = character(),
+                           Sample = character(),
+                           DAPCGroup = character()
+                           )
+
+PCADAPCPDFPath = paste0(folderPath, pdfPath, rawString, "ManualDAPCGroupNumSelection", manualDAPCGroupNumSelection, "PCADAPC.pdf")
+pdf(file = PCADAPCPDFPath)
+
+for (currentBestFilterPCA in PCADAPCBestFilterList){
+      currentSubset = str_extract(currentBestFilterPCA, paste0("(?<=",rawString,").*?(?=Outgroup)"))
+
+      # Pull in Traw file that has 0's, 1's, 2's, and NA's representing distance from reference allele
+      currentTrawDF = data.frame(read.table(paste0(folderPath, TrawPath, currentBestFilterPCA,".traw") , header=TRUE))[-c(1:6)]
+
+      
+      # Remove hybrid samples if specified. Hybrids would only be present in "All" subset since matchDF has a Population "H. hybrid" 
+      if (removeHybrids) {
+        currentTrawDF = currentTrawDF[, !(colnames(currentTrawDF) %in% paste("X0_", hybridSamples, sep = ""))]
+      }
+      
+
+      # Edit currentTrawDF to take numeric  
+      currentTrawDF %>% mutate_if(is.character,as.numeric)
+      
+      # Edit currentTrawDF to take transpose  
+      currentTrawDF = t(currentTrawDF) 
+
+      # Edit currentTrawDF to omit all NA samples
+      currentTrawDF = currentTrawDF[,colSums(is.na(currentTrawDF))<nrow(currentTrawDF)] 
+      
+      # Edit currentTrawDF to mean impute
+      currentTrawDF = na.aggregate(currentTrawDF) 
+            
+      if (length(RemoveSamplesPCADAPC)>0){
+        currentTrawDF = currentTrawDF[!rownames(currentTrawDF) %in% RemoveSamplesPCADAPC, ]
+      }      
+      
+      # Center data, perform PCA, and keep all PCs
+      currentPCA = dudi.pca(currentTrawDF, nf = nrow(currentTrawDF), center=TRUE, scale=FALSE, scannf=FALSE) 
+
+      # Get rid of the "X0_" that is in the rownames after PCA
+      rownames(currentPCA$li) = sub("^X0_", "", rownames(currentPCA$li))
+      
+      # Match row names of currentPCA$li with PCADAPCPopMap$Sample and assign Population values
+      currentPCA$li$pop = PCADAPCPopMap$Population[match(rownames(currentPCA$li), PCADAPCPopMap$Sample)]
+      
+      currentPCACumulativeSum = cumsum(currentPCA$eig)/sum(currentPCA$eig)
+
+      currentScreeDF = data.frame(PC= 1:currentPCA$nf, Eigenvalues = currentPCA$eig, VariationExplained = currentPCA$eig/sum(currentPCA$eig), CumulativeSumVarExplained = cumsum(currentPCA$eig)/sum(currentPCA$eig))
+      
+      
+##################################### PLOT #####################################  
+
+      require(gridExtra)
+      xBreaksSeq=seq(min(currentScreeDF$PC), max(currentScreeDF$PC)+2, round(max(currentScreeDF$PC)/10))
+      
+      p1 = ggplot(currentScreeDF, aes(PC, VariationExplained)) +
+        geom_col(fill = "coral1") +
+        scale_x_continuous(breaks = seq(1, max(currentScreeDF$PC), by = 1)) +
+        theme(axis.text=element_text(size=12)) +
+        scale_x_continuous(breaks=xBreaksSeq) +
+        labs(x="Principal Component", y="% Variation Explained") + 
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+      
+      
+      p2 = ggplot(currentScreeDF,aes(x = PC, y = CumulativeSumVarExplained)) +
+        geom_line(linewidth=1.2,color = "brown") +
+        geom_point(color="purple") +
+        scale_x_continuous(breaks = seq(1, max(currentScreeDF$PC), by = 1)) +
+        theme(axis.text=element_text(size=12)) +
+        scale_x_continuous(breaks=xBreaksSeq) +
+        scale_y_continuous(limits = c(0, 1.1)) +
+        labs(x="Principal Component", y="Cumulative % Variation Explained") + 
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+      
+      grid.arrange(p1, p2, ncol=2,
+                   bottom = textGrob(paste(substr(currentBestFilterPCA, 1, nchar(currentBestFilterPCA) %/% 2), substr(currentBestFilterPCA, nchar(currentBestFilterPCA) %/% 2 + 1, nchar(currentBestFilterPCA)), sep="\n"), x = 1, hjust = 1, gp = gpar(fontsize = 7.5)))
+      
+      
+################################################################################ 
+      
+
+##################################### PLOT #####################################  
+
+      p3 = s.class(currentPCA$li, fac = factor(currentPCA$li$pop),
+                 col = transp(funky(length(unique(currentPCA$li$pop))),alpha=0.4),
+                 axesel = FALSE, cstar = 0, cpoint = 3, pch = 18, csub = 0.55,
+                 sub = paste(substr(currentBestFilterPCA, 1, nchar(currentBestFilterPCA) %/% 2), substr(currentBestFilterPCA, nchar(currentBestFilterPCA) %/% 2 + 1, nchar(currentBestFilterPCA)), sep="\n"))
+
+################################################################################ 
+
+##################################### PLOT #####################################  
+      currentPCA$li$pop = as.factor(currentPCA$li$pop)
+      
+      p4 = ggplot(currentPCA$li, aes(x = Axis1, y = Axis2, color = pop, shape = pop)) +
+        geom_point() +
+        scale_shape_manual(values = 1:length(unique(currentPCA$li$pop))) +  
+        theme(axis.text = element_text(size=12))+
+        labs(x = "PC1", y = "PC2")+ 
+        labs(caption = paste(substr(currentBestFilterPCA, 1, nchar(currentBestFilterPCA) %/% 2), substr(currentBestFilterPCA, nchar(currentBestFilterPCA) %/% 2 + 1, nchar(currentBestFilterPCA)), sep="\n"))+
+        theme(plot.caption = element_text(size = 6,hjust = 0))
+      grid.arrange(p4, ncol=1)
+      
+      
+################################################################################ 
+
+            
+##################################### PLOT #####################################  
+      p5 = plot_ly(x = currentPCA$li$Axis1, y = currentPCA$li$Axis2, z = currentPCA$li$Axis3,
+                   type = "scatter3d",
+                   mode = "markers",
+                   color = factor(currentPCA$li$pop),
+                   colors = RColorBrewer::brewer.pal(min(length(unique(currentPCA$li$pop)),9),"Set1"))
+      
+      htmlwidgets::saveWidget(as_widget(p5), 
+                              paste0(folderPath, ThreeDPath, "PCA3D", currentBestFilterPCA, ".html"))
+      
+################################################################################ 
+      
+      # K-means on PCs, find best group # by AIC, DAPC (PCA-LDA) to visualize
+      numAssumedPops = length(unique(currentPCA$li$pop))
+      maxNClust = last(calculateKMeansSeq(numAssumedPops))  
+      
+      # Number of clusters must be less than the number of samples
+      if ( maxNClust > nrow(currentTrawDF) ){
+        maxNClust = nrow(currentTrawDF)-1
+      } 
+      
+      set.seed(KMeansSeed)
+
+      currentKMeans = find.clusters(currentTrawDF, n.clust=NULL, max.n.clust=maxNClust, n.pca = nrow(currentTrawDF), stat ="AIC", choose.n.clust=FALSE, criterion = "min") #goodfit #smoothNgoesup #goesup #min
+
+##################################### PLOT ##################################### 
+      
+      plot(currentKMeans$Kstat, type = "o", xlab = "Number of Clusters (K)", ylab = "AIC",
+           col = "blue", pch = 16, lwd = 2, cex = 1.2, xaxt = "n", bty = "l")
+      axis(1, at = 1:length(currentKMeans$Kstat), labels = 1:length(currentKMeans$Kstat))
+      grid(col="gray80")
+      
+################################################################################ 
+ 
+      # Overwrite find.clusters if manualDAPCGroupNumSelection == TRUE
+      if (manualDAPCGroupNumSelection){
+        setNClust = DAPCGroupNums$GroupNum[DAPCGroupNums$Subset == currentSubset]
+        currentKMeans = find.clusters(currentTrawDF, n.clust = setNClust, max.n.clust = maxNClust, n.pca = nrow(currentTrawDF), stat ="AIC", choose.n.clust = TRUE)
+      }
+      
+      
+      cumulativeSumPCACutoffPCs = min(which(currentPCACumulativeSum >= cumulativeSumPCACutoff))
+      
+      currentLDA = dapc(currentTrawDF, currentKMeans$grp, n.pca = cumulativeSumPCACutoffPCs, n.da = 100)
+
+      
+##################################### PLOT ##################################### 
+
+      scatter(currentLDA, posi.da="topright", bg="white",cstar=0, scree.pca=TRUE, posi.pca = "bottomleft")
+
+################################################################################ 
+      
+##################################### PLOT ##################################### 
+      
+      scatter(currentLDA, scree.da=FALSE, bg="white", pch=16, cell=0, cstar=0, solid=.4, cex=1, clab=0, leg = TRUE, txt.leg = paste("Cluster", 1:length(currentKMeans$size)))
+      points(currentLDA$grp.coord[,1], currentLDA$grp.coord[,2], pch=4,cex=1, lwd=2, col="black")
+
+      
+################################################################################ 
+      
+      
+      # Make DF that includes all IDs, popmap, PCA-LDA coordinates/group assignments
+      grpDF = data.frame(currentKMeans$grp)
+      grpDF$Sample = row.names(grpDF)
+      grpDF$Sample = sub("^X0_", "", grpDF$Sample)
+      grpDF = grpDF %>%
+        rename(pop = currentKMeans.grp)
+
+      row.names(grpDF) = NULL
+      
+      grpDFPopmapDF = inner_join(PCADAPCPopMap, grpDF, by = "Sample")
+      
+      # Append DAPC groupings to DAPCAssignments df
+      grpDFPopmapDFAppend = grpDFPopmapDF
+      grpDFPopmapDFAppend$Subset = currentSubset
+      DAPCAssignments = rbind(DAPCAssignments, grpDFPopmapDFAppend)
+      
+      LDACoords = data.frame(currentLDA$ind.coord)
+      LDACoords$Sample = row.names(LDACoords)
+      LDACoords$Sample = sub("^X0_", "", LDACoords$Sample)
+      row.names(LDACoords) = NULL
+      
+      
+      grpDFPopmapLDACoordsDF = inner_join(grpDFPopmapDF, LDACoords)
+
+      
+##################################### PLOT ##################################### 
+numPops = length(unique(grpDFPopmapLDACoordsDF$Population))
+
+ggplot(grpDFPopmapLDACoordsDF, aes(LD1, LD2)) +
+    geom_point(aes(color = factor(Population), shape = factor(Population)), size = 3, alpha = 0.8) +
+    scale_color_manual(values = rep(RColorBrewer::brewer.pal(9, "Set1"), length.out = numPops )) + 
+    scale_shape_manual(values = 1:length(unique(grpDFPopmapLDACoordsDF$Population))) +
+    theme_classic(base_size = 14) +
+    theme(
+        legend.position = "right",
+        legend.title = element_blank(),
+        axis.title = element_text(face = "bold"),
+        axis.text = element_text(color = "black")) +
+    labs(x = "LD1", y = "LD2")
+
+################################################################################ 
+    
+      grpDFPopmapCoordsDF = inner_join(grpDFPopmapDF, coordinates, by = c("Sample" = "ID"))
+      grpDFPopmapCoordsDF$pop = as.character(grpDFPopmapCoordsDF$pop)
+
+      # Save for making map later with color coordination between different analyses
+      if (currentSubset == "All") {
+        grpDFPopmapCoordsDFAll = grpDFPopmapCoordsDF
+      }
+
+      # For bounds on map plot
+      latitudeLowerLimit = min(grpDFPopmapCoordsDF$Latitude,na.rm = TRUE) - mapBoundsBuffer
+      latitudeUpperLimit = max(grpDFPopmapCoordsDF$Latitude,na.rm = TRUE) + mapBoundsBuffer
+      longitudeLowerLimit = min(grpDFPopmapCoordsDF$Longitude,na.rm = TRUE) - mapBoundsBuffer
+      longitudeUpperLimit = max(grpDFPopmapCoordsDF$Longitude,na.rm = TRUE) + mapBoundsBuffer
+      
+        
+      p66 = ggplot() +
+      # Add in terrain background
+      geom_raster(data = terrainDF, aes(x = Longitude, y = Latitude, fill = Color)) +
+      scale_fill_identity() + 
+    
+      # Add in borders
+      geom_sf(data = countryBordersMap, fill = NA, color = "black", linewidth = 0.3) +
+      geom_sf(data = internalBordersMap, fill = NA, color = "black", linewidth = 0.3, alpha = 0.9) +
+    
+      geom_point(data = grpDFPopmapCoordsDF, aes(x = Longitude, y = Latitude, fill = pop), size = 3, alpha= 0.7, shape = 21, color = "black", stroke = 0.5) +
+    geom_text(data = grpDFPopmapCoordsDF, aes(x = Longitude, y = Latitude, label = pop), color = "white", size = 2, fontface = "bold", vjust = 0.5, hjust = 0.5) +
+    labs(title = "PCA-LDA Group Assignments with Number of Clusters\n Chosen by K-means Minimum AIC", x = "", y = "") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(legend.title = element_blank(), legend.position = "none") + 
+    labs(caption=paste(substr(currentBestFilterPCA, 1, nchar(currentBestFilterPCA) %/% 2), substr(currentBestFilterPCA, nchar(currentBestFilterPCA) %/% 2 + 1, nchar(currentBestFilterPCA)), sep="\n"))+
+    theme(plot.caption = element_text(size = 6,hjust = 0)) +
+  
+        coord_sf(xlim = c(longitudeLowerLimit, longitudeUpperLimit), 
+             ylim = c(latitudeLowerLimit, latitudeUpperLimit), expand = FALSE)  
+      
+      grid.arrange(p66, ncol=1)
+      
+}
+
+dev.off()
+
+
+```
+</details>
+
+<br>
+<br>
+
+## Clustering Charts
+<br>
+<br>
 ![PCA DAPC Kmeans](https://github.com/mellamoadam/CladoScope/blob/main/Page1.png)
+<br>
+<br>
+The plots above illustrate results from several analyses, including PCA scree plots, AIC curves used to determine the optimal number of k-means clusters, 3D PCA visualizations, and Discriminant Analysis of Principal Components (DAPC). For the DAPC, we retain the principal components that collectively explain 80% of the total variance, and perform linear discriminant analysis using the number of clusters corresponding to the lowest AIC value from the k-means analysis.
+
+
 
 <br>
 <details>
@@ -1205,37 +1672,6 @@ For each combination of filter thresholds, a series of charts and analyses are g
 
 ```
 </details>
-
-
-
-
-<br>
-<details>
-<summary>First we install and load necessary packages</summary>
-<br>
-          
-```r
-
-
-```
-</details>
-
-
-
-
-
-<details>
-<summary>First we install and load necessary packages</summary>
-<br>
-          
-```r
-
-
-```
-</details>
-
-
-
 
 
 

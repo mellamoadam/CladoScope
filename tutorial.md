@@ -135,6 +135,7 @@ library(magick)
 <br>
 Now we can define and create local paths to user folders and software execution files that keep the results and temporary files organized. Must be adjusted to your own system.
 <br>
+
 <details>
 <summary>Define and create paths code</summary>
 <br>
@@ -233,6 +234,7 @@ knitr::opts_knit$set(root.dir = folderPath)
 # Pull Raw Data
 <br>
 Pulling in raw data files including `coordinateFile` that contains sample coordinates, VCF file, map files (.shp and geojson for boundaries, .tiff for terrain). Includes a query for iNaturalist if specified that will later include citizen science observations as gray points in background of DAPC map.
+
 <br>
 <details>
 <summary>Pull raw data code</summary>
@@ -279,6 +281,7 @@ inatCoords = read.csv(inatCoordsFile)
 # Organize Map-Related Files
 <br>
 We must convert terrain raster into RGB colors for map representation along with formatting coordinates file and map bounding boxes for plotting compatibility. We also subset maps for the political boundaries necessary for plotting our samples.
+
 <br>
 <details>
 <summary>Map-related organization code</summary>

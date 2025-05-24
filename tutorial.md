@@ -281,6 +281,7 @@ We must convert terrain raster into RGB colors for map representation along with
 <details>
 <summary>Map-related organization code</summary>
 <br>
+ 
 ```r
 
 ################################# USER INPUTS  #################################
@@ -374,6 +375,7 @@ Note that the USER INPUTS section of the code below reflects population assignme
 <details>
 <summary>Population map code</summary>
 <br>       
+ 
 ```r
 
 ################################# USER INPUTS  #################################
@@ -1153,7 +1155,7 @@ writeLines(c("VCFFileName\tSeqL" , paste(VCFFileNameList, seqLList, sep = "\t"))
 For each combination of filter thresholds, a series of charts and analyses are generated to help determine the most appropriate filters for a given dataset. This process is difficult to fully automate because the optimal thresholds depend on the specific goals of downstream analyses, which can vary widely. Different biological systems may also prioritize different metrics. For instance, some taxa may require maximizing the number of SNPs, even if it means relaxing depth filters. The following charts are produced for each filter set to support this decision-making process.
 <br>
 <br>
-
+![Filter Triage](https://github.com/mellamoadam/CladoScope/blob/main/Images/FilterTriage.png)
 ## Filter Set Selection
 Using the charts above, we select the best filter sets for our dataset. 
 <br>
@@ -1608,7 +1610,7 @@ dev.off()
 
 <br>
 <br>
-![PCA DAPC Kmeans](https://github.com/mellamoadam/CladoScope/blob/main/Page1.png)
+![PCA DAPC Kmeans](https://github.com/mellamoadam/CladoScope/blob/main/Images/Clustering.png)
 <br>
 <br>
 The plots above illustrate results from several analyses, including PCA scree plots, AIC curves used to determine the optimal number of k-means clusters, 3D PCA visualizations, and Discriminant Analysis of Principal Components (DAPC). For the DAPC, we retain the principal components that collectively explain 80% of the total variance, and perform linear discriminant analysis using the number of clusters corresponding to the lowest AIC value from the k-means analysis.
@@ -1813,7 +1815,7 @@ file.remove(  AdmixtureBarSubsetsPDFList  )
 
 <br>
 <br>
-![ADMIXTURE](https://github.com/mellamoadam/CladoScope/blob/main/ADMIXTURE.png)
+![ADMIXTURE](https://github.com/mellamoadam/CladoScope/blob/main/Images/ADMIXTURE.png)
 <br>
 <br>
 The plots above is an example of the results generated from ADMIXTURE analysis. Ancestral proportions are plotted as pie charts based on sampling locations. Various ancestral component values (K) are plotted for comparison purposes.  
@@ -1904,7 +1906,7 @@ PopMapDAPC = grpDFPopmapCoordsDFAllColorCoordination[, c("Sample", "PopulationDA
 
 <br>
 <br>
-![ColorCoordinated](https://github.com/mellamoadam/CladoScope/blob/main/ColorCoordinated.png)
+![ColorCoordinated](https://github.com/mellamoadam/CladoScope/blob/main/Images/ColorCoordinated.png)
 <br>
 <br>
 The plots above is an example of the results generated from ADMIXTURE analysis. Ancestral proportions are plotted as pie charts based on sampling locations. Various ancestral component values (K) are plotted for comparison purposes.  

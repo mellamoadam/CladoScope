@@ -1153,6 +1153,7 @@ writeLines(c("VCFFileName\tSeqL" , paste(VCFFileNameList, seqLList, sep = "\t"))
 For each combination of filter thresholds, a series of charts and analyses are generated to help determine the most appropriate filters for a given dataset. This process is difficult to fully automate because the optimal thresholds depend on the specific goals of downstream analyses, which can vary widely. Different biological systems may also prioritize different metrics. For instance, some taxa may require maximizing the number of SNPs, even if it means relaxing depth filters. The following charts are produced for each filter set to support this decision-making process.
 <br>
 <br>
+
 ## Filter Set Selection
 Using the charts above, we select the best filter sets for our dataset. 
 <br>
@@ -1336,7 +1337,7 @@ DAPCGroupNums$Subset = str_extract(PCADAPCBestFilterList, paste0("(?<=",rawStrin
 DAPCGroupNums$GroupNum = c(3,3,3,4,4,5,13,17)
 
 # Population map to use
-PCADAPCPopMap = matchDFJaniSplit
+PCADAPCPopMap = matchDF
 
 KMeansSeed = 1
 
@@ -1613,26 +1614,290 @@ dev.off()
 The plots above illustrate results from several analyses, including PCA scree plots, AIC curves used to determine the optimal number of k-means clusters, 3D PCA visualizations, and Discriminant Analysis of Principal Components (DAPC). For the DAPC, we retain the principal components that collectively explain 80% of the total variance, and perform linear discriminant analysis using the number of clusters corresponding to the lowest AIC value from the k-means analysis.
 <br>
 <br>
+
 <details>
-<summary>First we install and load necessary packages</summary>
+<summary>Admixture</summary>
 <br>
           
 ```r
 
+################################# USER INPUTS  #################################
+# Set list of VCF subset file paths to perform Admixture on (generally no outgroup and MAC/MAF filters on)
+AdmixtureBestFilterList = bestFilterSetsOutgroupOmittedWithMACMAF
+
+# Population map to use for calculating sequence of K-values to run
+initializeAdmixturePopMap = PopMapDAPC
+
+# Upper limit of number of populations to split subset into. For example, if we think the subset is 5 populations, we can test K = 2:8 with expression below.
+KLowerLimit = 2
+calculateKSeq = function(populationLength) {
+  KLowerLimit:round(populationLength + sqrt(populationLength) * 1.5)
+}
+
+# Do not append hybridSamples to samplesToRemove since we want to see these samples in admixture 
+samplesToRemoveAdmixture = c(samplesToRemove)
+
+################################################################################
+
+
+for (bestFilterBySubset in AdmixtureBestFilterList){
+
+  currentVCFPath = paste0(folderPath, VCFPath, bestFilterBySubset, ".vcf")
+
+  # Read in VCF to get 
+  currentVCFAdmixture = read.vcfR(currentVCFPath)
+      
+  currentVCFSamples = colnames((currentVCFAdmixture)@gt)[-1]
+  filteredVCFSamples = currentVCFSamples[!(currentVCFSamples %in% samplesToRemoveAdmixture)]
+      
+  admixturePopMap = initializeAdmixturePopMap
+  admixturePopMap = admixturePopMap[admixturePopMap$Sample %in% filteredVCFSamples,]
+  
+  # Grab the name of the subset populations based on it's position in the file string (between rawString and "Outgroup")
+  currentSubsetName = sub(paste0("^", rawString, "(.*?)(Outgroup).*"), "\\1", bestFilterBySubset)
+  
+  # Find the number of populations in the current subset. Complicated because in popsOfInterest, for example the popsOfInterest chlorophaea is actually 3 subspecies that are grabbed. Also works if popsOfInterest specified subspecies.
+  currentSubsetPopulationLength = length(unique(admixturePopMap$Population))
+  
+  clusterSeq = calculateKSeq(currentSubsetPopulationLength)
+  
+  # Initialize plotlist and create plotlist iteration variable
+  plotlist = list()
+  iteration = 1
+  CVErrorDF = data.frame(K=numeric(),Subset=character(),CVError=numeric())
+  
+  for (K in clusterSeq){
+    # Run admixture
+     system(paste0("cd ", admixtureSWFolderPath, " && ", admixtureSWFolderPath, "admixture ", folderPath, bedPath, bestFilterBySubset, ".bed ", K, " --cv  | tee ", folderPath, admixturePath, "CVErrors/CVLog",currentSubsetName,"_",K,".txt"), intern = TRUE)
+
+    Sys.sleep(1) # Let files write before naming file in the next step
+
+    CVError = system(paste0("grep -h CV ", folderPath, admixturePath, "CVErrors/CVLog", currentSubsetName, "_", K, ".txt | awk -F': ' '{print $2}'"),intern=TRUE)
+    # Add a new row to the data frame
+    CVErrorDF = rbind(CVErrorDF, data.frame(K=K,Subset=currentSubsetName,CVError=as.numeric(CVError)))
+    
+    # Move P and Q files to Admixture folder
+    PPath = paste0(folderPath,admixturePath,bestFilterBySubset,".",K,".P") 
+    QPath = paste0(folderPath,admixturePath,bestFilterBySubset,".",K,".Q")
+    famPath = paste0(folderPath,bedPath,bestFilterBySubset,".fam")
+
+    PFiles=list.files(path=paste0(admixtureSWFolderPath),pattern=paste0(bestFilterBySubset,".+P"),full.names=TRUE)
+    QFiles=list.files(path=paste0(admixtureSWFolderPath),pattern=paste0(bestFilterBySubset,".+Q"),full.names=TRUE)
+    system(paste0("mv ",PFiles," ",PPath))
+    system(paste0("mv ",QFiles," ",QPath))
+
+    
+    P = read.table(PPath, header = FALSE)
+    Q = read.table(QPath, header = FALSE)
+    fam = read.table(famPath, header = FALSE)
+    famDF = data.frame(fam)
+    names(famDF)[names(famDF) == 'V2'] = 'Sample'
+    
+    # Match the samples to the population
+    QJoined = inner_join(famDF, matchDF,by="Sample") 
+    QJoined = cbind(QJoined[c("Sample","Population")],Q)
+    QJoined = QJoined[order(QJoined$Population),]
+    
+    Q_long = melt(QJoined, id.vars = c("Sample", "Population"), variable.name = "AncestryComponent", value.name = "Proportion")
+    
+    Q_long$Sample = factor(Q_long$Sample, levels = unique(QJoined$Sample))
+    
+    p = ggplot(Q_long, aes(x = Sample, y = Proportion, fill = AncestryComponent)) + 
+      geom_bar(stat = "identity") +
+      labs(x = "Sample", y = "Ancestry", fill = "Ancestry Component") +
+      scale_fill_manual(values = rainbow(ncol(QJoined) - 2)) +  
+      theme_minimal() +
+      theme(axis.title.y = element_blank(), 
+            axis.text.y = element_blank(), 
+            axis.ticks.y = element_blank())
+    
+    # Hide x-axis labels until the last plot (when K == length(clusterSeq))
+    if (K < length(clusterSeq)) {
+      p = p + theme(axis.text.x = element_blank(), axis.title.x = element_blank())
+    } else {
+      p = p + theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 4))
+    }
+
+    
+    p = p + guides(fill = "none")
+
+    
+    plotlist[[iteration]] = p   
+
+    
+    
+    # Join each sample with coordinates
+    coords=coordinates
+    colnames(coords)[colnames(coords) == "ID"]="Sample"
+    coords$Sample = gsub("^X0_", "", coords$Sample)
+
+    QMap=inner_join(QJoined, coords, by="Sample")
+    
+    # For bounds on map plot
+    latitudeLowerLimit = min(QMap$Latitude,na.rm = TRUE) - mapBoundsBuffer
+    latitudeUpperLimit = max(QMap$Latitude,na.rm = TRUE) + mapBoundsBuffer
+    longitudeLowerLimit = min(QMap$Longitude,na.rm = TRUE) - mapBoundsBuffer
+    longitudeUpperLimit = max(QMap$Longitude,na.rm = TRUE) + mapBoundsBuffer
+    
+
+    AdmixturePieMapsPDFPath=paste0(folderPath, pdfPath, 'AdmixturePieMaps/Pie', bestFilterBySubset, "K", ncol(Q), ".pdf")
+    
+    pdf(file=AdmixturePieMapsPDFPath)
+  
+    
+    QMapAdmixtureColnames = colnames(QMap)[grepl("^V\\d+$", colnames(QMap))]
+admixtureColors = setNames(colorRampPalette(RColorBrewer::brewer.pal(9, "Set1"))(length(QMapAdmixtureColnames)), QMapAdmixtureColnames)
+
+      
+    p65 = ggplot() +
+    # Add in terrain background
+    geom_raster(data = terrainDF, aes(x = Longitude, y = Latitude, fill = Color)) +
+    scale_fill_identity() + 
+  
+    # Add in borders
+    geom_sf(data = countryBordersMap, fill = NA, color = "black", linewidth = 0.3) +
+    geom_sf(data = internalBordersMap, fill = NA, color = "black", linewidth = 0.3, alpha = 0.9) +
+    
+    # Add pie charts on new scale so pies don't override raster
+    new_scale_fill() +
+    geom_scatterpie(aes(x = Longitude, y = Latitude, r = 0.24), 
+                    data = QMap, 
+                    cols = QMapAdmixtureColnames, 
+                    color = "black", alpha = 0.8, linewidth = 0.1) +
+    scale_fill_manual(values = admixtureColors) +  
+    theme_void() +  
+    theme(legend.position = "none") + 
+      labs(caption = paste(substr(bestFilterBySubset, 1, nchar(bestFilterBySubset) %/% 2), substr(bestFilterBySubset, nchar(bestFilterBySubset) %/% 2 + 1, nchar(bestFilterBySubset)), sep="\n")) +
+      theme(plot.caption = element_text(size = 6, hjust = 0)) +
+      coord_sf(xlim = c(longitudeLowerLimit, longitudeUpperLimit), 
+           ylim = c(latitudeLowerLimit, latitudeUpperLimit), 
+           expand = FALSE)  
+    
+    grid.arrange(p65, ncol=1)
+
+    dev.off()
+    
+    iteration=iteration+1
+  }
+  
+  AdmixtureBarPlotsPDFPath=paste0(folderPath,pdfPath,'AdmixtureBarPlots/AdBar',bestFilterBySubset, ".pdf")
+  pdf(file=AdmixtureBarPlotsPDFPath)
+  footnote=textGrob(paste(substr(bestFilterBySubset, 1, nchar(bestFilterBySubset) %/% 2), substr(bestFilterBySubset, nchar(bestFilterBySubset) %/% 2 + 1, nchar(bestFilterBySubset)), sep="\n"), gp = gpar(fontsize = 6))
+
+  grid.arrange(grobs=plotlist,bottom = footnote)
+  dev.off()
+
+  #Combine pdf for each K value into one and delete individuals
+  AdmixturePiePDFList=mixedsort(list.files(path=paste0(folderPath,pdfPath,'AdmixturePieMaps'), pattern=paste0(bestFilterBySubset,".+pdf"), all.files=TRUE, full.names=TRUE))
+  pdf_combine(input = paste0(AdmixturePiePDFList), output = paste0(folderPath,pdfPath,'AdmixturePieMaps/',bestFilterBySubset,"Subset.pdf"))
+  file.remove(list.files(path=paste0(folderPath,pdfPath,"AdmixturePieMaps/"), pattern=paste0("Pie",".+K",".+pdf"), all.files=TRUE, full.names=TRUE)  )
+ 
+  AdmixtureCVErrorPlotsPDFPath=paste0(folderPath,pdfPath,'CVErrorLinePlot', ".pdf")
+  pdf(file=AdmixtureCVErrorPlotsPDFPath)
+  ggplot(CVErrorDF,aes(x=K,y=CVError))+geom_line()+geom_point()+facet_wrap(~Subset,scales="free_y",ncol=1)+labs(x="K",y="CV Error")+theme_minimal()
+  dev.off()
+}
+
+# Now combine all subset Admixture into one pdf and remove each individual subset
+AdmixturePieSubsetsPDFList=list.files(path=paste0(folderPath,pdfPath,'AdmixturePieMaps/'), pattern="Subset.pdf", all.files=TRUE, full.names=TRUE)
+pdf_combine(input = paste0(AdmixturePieSubsetsPDFList), output = paste0(folderPath,pdfPath,'AdmixturePieMaps/',"AdmixturePieMaps.pdf"))
+file.remove(  AdmixturePieSubsetsPDFList )
+
+AdmixtureBarSubsetsPDFList=list.files(path=paste0(folderPath,pdfPath,'AdmixtureBarPlots/'), pattern=paste0("AdBar",rawString,".+pdf"), all.files=TRUE, full.names=TRUE)
+pdf_combine(input = paste0(AdmixtureBarSubsetsPDFList), output = paste0(folderPath,pdfPath,'AdmixtureBarPlots/',"AdmixtureBarPlots.pdf"))
+file.remove(  AdmixtureBarSubsetsPDFList  )
 
 ```
 </details>
 
+## ADMIXTURE Charts
+<br>
+<br>
+![ADMIXTURE](https://github.com/mellamoadam/CladoScope/blob/main/ADMIXTURE.png)
+<br>
+<br>
+The plots above is an example of the results generated from ADMIXTURE analysis. Ancestral proportions are plotted as pie charts based on sampling locations. Various ancestral component values (K) are plotted for comparison purposes.  
 
 
-
+# Color Coordinated Plots
+After performing PCA, DAPC, and ADMIXTURE, we take our results and create plots that color coordinate the populations based on their respective DAPC populations. Here, the optimal ADMIXTURE ancestral proportion K-value is choosen as the minimum AIC value from k-means on each respective subset.
+<br>
 <br>
 <details>
-<summary>First we install and load necessary packages</summary>
+<summary>Color coordinated plots</summary>
 <br>
           
 ```r
+# In order to match the coloration of IQ Trees populations, DAPC Groups, and Admixture plots, we make TreeColPopMap that 
 
+################################# USER INPUTS  #################################
+# The following is for color coordinating DAPC, Admixture, and IQ-Trees
+# We cannot just take the population assignments from the "All" subset in DAPC since because we want to grab the population assignments from each of the subsets, then manually name the assignments of the other populations after.
+popAssignmentSubsets = c("Ochrorhyncha", "Jani", "ChlorophaeaSpNov1SpNov2TorquataUnaocularusCatalinae")
+
+# Depending on how extensive the coverage of popAssignmentSubsets is, there may be some samples that don't have a named population. Define which population map to pull from for this assignment. Note that TreeColPopMap is created using DAPCAssignments, which doesn't contain any hybridSamples because it is based on the traw file that had those samples removed before analyses.
+otherPopsPopMapMatchDF = matchDFJaniSplit
+
+################################################################################
+
+
+# Create the new dataframe for color coordination
+TreeColPopMap = DAPCAssignments %>%
+  filter(Subset %in% popAssignmentSubsets | Subset == "All") %>%
+  distinct(Sample, .keep_all = TRUE) %>%
+  mutate(Population = case_when(
+    Subset %in% popAssignmentSubsets ~ paste(Subset, pop, sep = "_"),  # Concatenate Subset and pop for valid subsets
+    TRUE ~ "Other"  # Assign "Other" for non-valid subsets
+  )) 
+TreeColPopMap = TreeColPopMap[, colnames(TreeColPopMap) %in% c("Sample", "Population", "Subset")]
+
+# Match these "Other" samples to their otherPopsPopMapMatchDF Population
+TreeColPopMap$Population[TreeColPopMap$Population == "Other"] = otherPopsPopMapMatchDF$Population[match(TreeColPopMap$Sample[TreeColPopMap$Population == "Other"], otherPopsPopMapMatchDF$Sample)]
+
+numColors = length(unique(TreeColPopMap$Population))
+colorPops = distinctColorPalette(length(unique(TreeColPopMap$Population)))
+
+# If there are more than 12 populations, generate more distinct colors
+if (numColors > 12) {
+  colorPops = colorRampPalette(colorPops)(numColors)
+}
+
+# Create a vector with population names as keys and colors as values
+popColorMap = setNames(colorPops, unique(TreeColPopMap$Population))
+
+# Assign colors to the Color column in TreeColPopMap based on Population
+TreeColPopMap$Color = popColorMap[TreeColPopMap$Population]
+
+
+# Now TreeColPopMap contains the Sample, Population, Subset used for the population assignment, and Color. For some analyses, we might want to name these populations more clearly than by "subset_pop", so we create a new column PopulationDAPC and create grpDFPopmapCoordsDFAllColorCoordination to also include associated coordinates. This population map is called PopMapDAPC.
+
+grpDFPopmapCoordsDFAllColorCoordination = merge(grpDFPopmapCoordsDFAll, TreeColPopMap[, c("Sample", "Color", "Subset")], by = "Sample", all.x = TRUE)
+
+# Make a color map
+colorMapping = data.frame(
+  Color = unique(grpDFPopmapCoordsDFAllColorCoordination$Color),
+  UniqueNumber = seq_along(unique(grpDFPopmapCoordsDFAllColorCoordination$Color))
+)
+
+# Merge the mapping back into the main data frame
+grpDFPopmapCoordsDFAllColorCoordination = merge(grpDFPopmapCoordsDFAllColorCoordination, colorMapping, by = "Color", all.x = TRUE)
+
+majorityMap = grpDFPopmapCoordsDFAllColorCoordination %>%
+  group_by(UniqueNumber, Population) %>%
+  tally() %>%
+  slice_max(order_by = n, n = 1, with_ties = FALSE) %>%
+  ungroup()
+
+majorityMap$Population = as.character(majorityMap$Population)
+dupCounts = ave(majorityMap$Population, majorityMap$Population, FUN = seq_along)
+duplicatedNames = duplicated(majorityMap$Population) | duplicated(majorityMap$Population, fromLast = TRUE)
+majorityMap$Population[duplicatedNames] = paste0(majorityMap$Population[duplicatedNames], "_", dupCounts[duplicatedNames])
+
+grpDFPopmapCoordsDFAllColorCoordination = grpDFPopmapCoordsDFAllColorCoordination %>%
+  left_join(majorityMap[, c("UniqueNumber", "Population")], by = "UniqueNumber") %>%
+  rename(PopulationDAPC = Population.y)
+
+PopMapDAPC = grpDFPopmapCoordsDFAllColorCoordination[, c("Sample", "PopulationDAPC")]
 
 ```
 </details>

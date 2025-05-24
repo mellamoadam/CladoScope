@@ -1810,7 +1810,7 @@ file.remove(  AdmixtureBarSubsetsPDFList  )
 <br>
 The plots below are examples of the results generated from ADMIXTURE analysis for a particular subset. Ancestral proportions are plotted as pie charts based on sampling locations. Various ancestral component values (K) are plotted for comparison purposes.  
 <br>
-
+<br>
 ![ADMIXTURE](https://github.com/mellamoadam/CladoScope/blob/main/Images/ADMIXTURE.png)
 <br>
 <br>
@@ -1993,11 +1993,12 @@ PopMapDAPC = grpDFPopmapCoordsDFAllColorCoordination[, c("Sample", "PopulationDA
 
 <br>
 <br>
+This section shows three plots that bring together results from PCA, DAPC, and ADMIXTURE, all using the same color scheme based on DAPC groupings to make comparisons easier. We choose the number of ancestral populations in ADMIXTURE using the k-means group with the lowest AIC. The top left plot maps samples colored by DAPC groups alongside iNaturalist observations in gray. The second is a PCA plot showing ADMIXTURE ancestry proportions using those same groups. The third is an IQ-TREE phylogeny with tips colored by DAPC group. Together, these plots give a clear picture of how genetic structure lines up with geography and evolutionary relationships.
+<br>
+<br>
 
 ![ColorCoordinated](https://github.com/mellamoadam/CladoScope/blob/main/Images/ColorCoordinated.png)
 <br>
-<br>
-This section shows three plots that bring together results from PCA, DAPC, and ADMIXTURE, all using the same color scheme based on DAPC groupings to make comparisons easier. We choose the number of ancestral populations in ADMIXTURE using the k-means group with the lowest AIC. The top left plot maps samples colored by DAPC groups alongside iNaturalist observations in gray. The second is a PCA plot showing ADMIXTURE ancestry proportions using those same groups. The third is an IQ-TREE phylogeny with tips colored by DAPC group. Together, these plots give a clear picture of how genetic structure lines up with geography and evolutionary relationships.
 <br>
 <details>
 <summary>First we install and load necessary packages</summary>

@@ -1268,8 +1268,6 @@ for (filterSet in convertToBed){
 </details>
 
 ## Filter Set VCF Conversion
-<br>
-<br>
 The code below will convert the selected filter sets to the necessary file types for future analyses (.nexus, .bin.nexus, .traw, .phy).  
 <br>
 <br>

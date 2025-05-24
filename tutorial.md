@@ -1150,8 +1150,6 @@ writeLines(c("VCFFileName\tSeqL" , paste(VCFFileNameList, seqLList, sep = "\t"))
 
 ```
 </details>
-<br>
-<br>
 For each combination of filter thresholds, a series of charts and analyses are generated to help determine the most appropriate filters for a given dataset. This process is difficult to fully automate because the optimal thresholds depend on the specific goals of downstream analyses, which can vary widely. Different biological systems may also prioritize different metrics. For instance, some taxa may require maximizing the number of SNPs, even if it means relaxing depth filters. The following charts are produced for each filter set to support this decision-making process.
 <br>
 <br>

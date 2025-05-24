@@ -1270,7 +1270,6 @@ for (filterSet in convertToBed){
 ## Filter Set VCF Conversion
 The code below will convert the selected filter sets to the necessary file types for future analyses (.nexus, .bin.nexus, .traw, .phy).  
 <br>
-<br>
 <details>
 <summary>VCF Conversion</summary>
 <br>
@@ -1308,7 +1307,6 @@ for (filterSet in convertToTraw){
 # Clustering
 <details>
 <summary>PCA, k-means, and DAPC</summary>
-<br>
 <br>
           
 ```r

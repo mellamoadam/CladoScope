@@ -1606,7 +1606,7 @@ dev.off()
 <br>
 The plots below illustrate results from several analyses, including PCA scree plots, AIC curves used to determine the optimal number of k-means clusters, 3D PCA visualizations, and Discriminant Analysis of Principal Components (DAPC). For the DAPC, we retain the principal components that collectively explain 80% of the total variance, and perform linear discriminant analysis using the number of clusters corresponding to the lowest AIC value from the k-means analysis.
 <br>
-
+<br>
 ![PCA DAPC Kmeans](https://github.com/mellamoadam/CladoScope/blob/main/Images/Clustering.png)
 <br>
 <br>
@@ -1812,6 +1812,7 @@ file.remove(  AdmixtureBarSubsetsPDFList  )
 The plots below are examples of the results generated from ADMIXTURE analysis for a particular subset. Ancestral proportions are plotted as pie charts based on sampling locations. Various ancestral component values (K) are plotted for comparison purposes.  
 <br>
 <br>
+
 ![ADMIXTURE](https://github.com/mellamoadam/CladoScope/blob/main/Images/ADMIXTURE.png)
 <br>
 <br>

@@ -1616,6 +1616,7 @@ The plots above illustrate results from several analyses, including PCA scree pl
 <br>
 <br>
 
+# ADMIXTURE
 <details>
 <summary>Admixture</summary>
 <br>

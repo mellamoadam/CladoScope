@@ -1903,6 +1903,100 @@ PopMapDAPC = grpDFPopmapCoordsDFAllColorCoordination[, c("Sample", "PopulationDA
 
 ```
 </details>
+<br>
+<br>
+# Concatenated Trees
+We now run IQ-tree for all VCF files that do not subset out specific populations. 
+<br>
+<details>
+<summary>IQ-Tree</summary>
+<br>
+ 
+```r
+
+################################# USER INPUTS  #################################
+# VCFTreePaths is the list of files to make IQ-Trees with. Conditions below pull VCFs with MAC/MAF filters, include the outgroup, and are subset: All
+VCFTreePaths = list.files(path = paste0(folderPath, VCFPath), pattern = paste0(rawString, "AllOutgroupTRUE.*MAC[0-9]+MAF[0-9.]+.*\\.vcf$"))
+
+
+# Don't plot if VCF has less than this many sites
+minSitesForTree = 100
+
+IQTreeModel="GTR+ASC"
+
+bootstrapNum = 1000
+
+# Popmap to use for tip colors
+IQTreePopMap = matchDF
+
+################################################################################
+
+for (vcfTree in VCFTreePaths){
+  subsetAndFilterString = str_sub(vcfTree,end=-5)
+  # Only make tree if filtering protocol included 1 or more outgroup sample
+  currentSampleList = system(paste0("awk 'BEGIN{FS=\"\t\"} /^#CHROM/ {for (i=10; i<=NF; i++) print $i}' ",folderPath,VCFPath,subsetAndFilterString,".vcf"),intern = TRUE)
+
+  # Count lines that do not start with '#' (data lines)
+  numSites = sum(!grepl("^#", readLines(paste0(folderPath,VCFPath,vcfTree))))
+
+  # Only make tree if minumum site condition is met
+  if (numSites >= minSitesForTree){
+    # Attempt to run iqtree2. If invariant sites are present, iqtree will output a cleaned phy file with the same name, but with the suffix ".phy.varsites.phy" instead of the original ".phy" 
+    system(paste0(IQTreeSWPath," -s ", folderPath, PHYPath, subsetAndFilterString, ".phy", " -m ", IQTreeModel, " -B ", bootstrapNum," -T AUTO -st DNA -redo"))
+    
+    Sys.sleep(1) # Let file write before naming file in the next step
+
+    # Overwrite the original file and redo tree with the invariant sites removed if this step is required
+    if(file.exists(paste0(folderPath, PHYPath, subsetAndFilterString, ".phy.varsites.phy"))) {
+      system(paste0("mv ",folderPath,PHYPath,subsetAndFilterString,".phy.varsites.phy"," ",folderPath,PHYPath,subsetAndFilterString,".phy"))
+      Sys.sleep(1) #Let file write before naming file in the next step
+      #Rerun iqtree with invariant sites removed .phy file
+      system(paste0("/opt/homebrew/bin/iqtree2 -s ",folderPath,PHYPath,subsetAndFilterString,".phy"," -m ", IQTreeModel," -B ",bootstrapNum," -T AUTO -st DNA"))
+      Sys.sleep(1) #Let file write before naming file in the next step
+    }
+    
+    currentTreeFile=list.files(path=paste0(folderPath,PHYPath),pattern=paste0(subsetAndFilterString,".+treefile"))
+    
+    # Create tree if the treefile was made successfully
+    if (length(currentTreeFile)!=0){
+      tree = read.tree(file=paste0(folderPath,PHYPath,currentTreeFile))
+    }
+    currentOutgroup = outgroupSamples[outgroupSamples %in% currentSampleList]
+    #Root tree if any outgroup samples are present and if the treefile was made successfully
+    if (length(currentOutgroup)!=0 & length(currentTreeFile)!=0){
+      tree=root(tree, outgroup = currentOutgroup, resolve.root = TRUE)
+    }
+    
+    # Create tree pdf if the treefile was made successfully
+    if (length(currentTreeFile)!=0){
+      #Create popmap for tree tip labels for color coordination to population names
+      treeMatchDF=data.frame(Sample=tree$tip.label) # Initialize popmap with IDs
+      treeMatchDF$Population = IQTreePopMap$Population[match(treeMatchDF$Sample, IQTreePopMap$Sample)]
+
+      uniquePops=unique(treeMatchDF$Population)
+      treeColors=distinctColorPalette(length(unique(treeMatchDF$Population)))
+      named_colors=setNames(treeColors, uniquePops)
+      treeMatchDF$Colors=named_colors[as.character(treeMatchDF$Population)]
+      
+      titleSplit = paste(substr(subsetAndFilterString, 1, nchar(subsetAndFilterString) %/% 2), substr(subsetAndFilterString, nchar(subsetAndFilterString) %/% 2 + 1, nchar(subsetAndFilterString)), sep="\n")
+      pdf(file=paste0(folderPath,pdfPath,'Trees/',subsetAndFilterString, ".pdf"))
+      plot.phylo(tree, main = titleSplit, cex=0.2, cex.main=0.6, show.node.label = TRUE, tip.color = treeMatchDF$Colors) 
+      dev.off()
+    }
+    # Now move all tree-related files to separate folder
+    allAllTreeFiles=list.files(path=paste0(folderPath,PHYPath),pattern="tree|mldist|split|bionj|log|ckp")
+    
+    file.rename(from = paste0(folderPath, PHYPath, allAllTreeFiles), to = paste0(folderPath, IQTreePath, allAllTreeFiles))
+  }
+}
+
+
+treePDFList=mixedsort(list.files(path=paste0(folderPath,pdfPath,'Trees'), pattern=".pdf", all.files=TRUE, full.names=TRUE))
+allTreesPath=paste0(folderPath,pdfPath,rawString,"Trees.pdf")
+pdf_combine(input=c(treePDFList),output=allTreesPath)
+
+```
+</details>
 
 <br>
 <br>
@@ -1924,6 +2018,7 @@ The plots above is an example of the results generated from ADMIXTURE analysis. 
 
 ```
 </details>
+
 
 
 

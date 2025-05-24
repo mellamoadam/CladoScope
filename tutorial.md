@@ -1612,6 +1612,7 @@ The plots below illustrate results from several analyses, including PCA scree pl
 <br>
 
 # ADMIXTURE
+We used the model-based clustering approach implemented in ADMIXTURE (Alexander et al., 2009) to estimate individual ancestry proportions and infer population structure. This method assumes a user-defined number of ancestral populations (K) and estimates the proportion of each individual’s genome derived from each population.
 <details>
 <summary>Admixture</summary>
 <br>
@@ -2000,16 +2001,637 @@ This section shows three plots that bring together results from PCA, DAPC, and A
 ![ColorCoordinated](https://github.com/mellamoadam/CladoScope/blob/main/Images/ColorCoordinated.png)
 <br>
 <br>
+
+# SVD Quartets
 <details>
-<summary>First we install and load necessary packages</summary>
+<summary>SVDQ</summary>
+<br>
+<br>
+          
+```r
+
+################################# USER INPUTS ################################## 
+# The following only pulls files that were converted to from VCF to Nexus, have MAC/MAF filters, include the outgroup, and are subset: All
+NexusTreePaths = list.files(path=paste0(folderPath, nexusPath), pattern = paste0(rawString, "AllOutgroupTRUE.*MAC[0-9]+MAF[0-9.]+.*\\.nexus$"))
+
+# SVDQ Run Parameters
+bootstrapReps = 500
+quartetNum = 100000
+threadNum = 8
+seedNum = 0
+taxPartitionName = "HypsiglenaAndOutgroup"
+
+
+# Population map to use
+SVDQPopMap = PopMapDAPC
+
+
+# Append samplesToRemove with hybrid samples for SVDQ. samplesToRemove contains samples that are of poor quality or cannot be used for some reason. hybridSamples can be identified by PCA, IQ-Tree etc.
+samplesToRemoveSVDQ = c(samplesToRemove, hybridSamples)
+
+# Add H_jani_Other samples to samplesToRemoveSVDQ if using matchDFJaniSplit
+if (identical(SVDQPopMap, matchDFJaniSplit)){
+  samplesToRemoveSVDQ = union(samplesToRemoveSVDQ, janiGroups$H_jani_Other)
+}
+
+################################################################################ 
+
+for (nexusPathSVDQ in NexusTreePaths){
+  # Copy Nexus file to SVDQPath for edits
+  currentNexusPath = paste0(folderPath,nexusPath,nexusPathSVDQ)
+  workingNexusFilePath = paste0(folderPath,SVDQPath,"currentSVDQNexus.nexus")
+  
+  subsetAndFilterString = str_sub(nexusPathSVDQ,end = -7)
+  system(paste0("cp ",currentNexusPath," ",workingNexusFilePath))
+  
+  nexusLines = readLines(workingNexusFilePath) 
+  
+  # First edit workingNexusFilePath file to remove samples and edit header accordingly. Removal based on first 
+  sampleNamesInNexus = sub("\\t.*|  .*", "", nexusLines)
+  linesToRemove = sampleNamesInNexus %in% samplesToRemoveSVDQ
+  numRemoved = sum(linesToRemove)
+  nexusLines = nexusLines[!linesToRemove]
+
+  # Need to update the line that says NTAX in nexus file since we are deleting some samples
+  ntaxLineIndex  =  grep("NTAX", nexusLines)
+  ntaxLine = nexusLines[ntaxLineIndex]
+  newNtaxValue = as.integer(sub(".*NTAX=([0-9]+).*", "\\1", ntaxLine)) - numRemoved
+  ntaxLineUpdated = gsub("NTAX=[0-9]+", paste0("NTAX=", newNtaxValue), ntaxLine)
+  nexusLines[ntaxLineIndex] = ntaxLineUpdated
+  writeLines(nexusLines, workingNexusFilePath)
+
+  # Subset population map to only include the current nexus file samples 
+  sampleIDs = names(read.nexus.data(workingNexusFilePath))
+  SVDQPopMap = SVDQPopMap[SVDQPopMap$Sample %in% sampleIDs, ]
+  
+  # Add in outgroup samples if they aren't in the SVDQPopMap
+  missingOutgroupSamples = outgroupSamples[!outgroupSamples %in% SVDQPopMap$Sample]
+  
+  if (length(missingOutgroupSamples) > 0) {
+    outgroupRows = data.frame(Sample = missingOutgroupSamples, PopulationDAPC = outgroupPopName)
+    SVDQPopMap = rbind(SVDQPopMap, outgroupRows)
+  }
+
+  
+  SVDQPopMapTxtFilePath = paste0(folderPath,SVDQPath,subsetAndFilterString,'popmapSVD.txt')
+  unlink(SVDQPopMapTxtFilePath, recursive = TRUE, force = TRUE)
+  con = file(SVDQPopMapTxtFilePath, "w") # Open file connection
+  write.table(cbind(SVDQPopMap$Sample,SVDQPopMap$Population),file = con,sep = "\t",quote = FALSE,row.names = FALSE,col.names = FALSE)
+  close(con)
+
+  popMapString = SVDQPopMap %>%
+    group_by(PopulationDAPC) %>%
+    summarize(Samples = paste0(Sample, collapse = " ")) %>%
+    mutate(String = paste0(PopulationDAPC, " : ", Samples)) %>%
+    pull(String)
+  
+  # Add comma to all lines besides last line and a semicolon to last line
+  if (tail(str_split(popMapString[1],"")[[1]],1)!=','){ #Only modify string if it hasn't been modified already. Check if modded by seeing if I already appended "," to end of each line (besides last)
+    popMapString[-length(popMapString)] = paste0(popMapString[-length(popMapString)], ",")
+    popMapString[length(popMapString)] = paste0(popMapString[length(popMapString)], ";")
+  }
+  sets = paste0(
+    "execute ",workingNexusFilePath,";\n",
+    "begin sets;\n",
+    "taxpartition ",  taxPartitionName," =\n",
+    paste(popMapString, collapse = "\n"),"\n",
+    "end;\n"
+    )
+
+  setsPath = paste0(folderPath, SVDQPath, "PaupCommand", "B.nex")
+  writeLines(sets, setsPath)
+  
+  #Need to define which blocks represent the outgroups by the order they appear in the current nexus file
+  nexusContent = readLines(workingNexusFilePath)
+  
+  # Extract sample names from the NEXUS file
+  # Assuming sample names appear after "MATRIX" and before a semicolon
+  matrixStart = grep("MATRIX", nexusContent, ignore.case = TRUE)
+  matrixEnd = grep(";", nexusContent, ignore.case = TRUE)
+  matrixEnd = matrixEnd[matrixEnd > matrixStart][1]
+  
+  # Extract the lines with the sample names
+  matrixLines = nexusContent[(matrixStart + 1):(matrixEnd - 1)]
+  
+  # Parse sample names
+  sampleNames = sapply(strsplit(matrixLines, "\\s+"), function(x) x[1])
+  
+  # Find block numbers for the outgroup samples
+  outgroupBlockNumbers = sort(match(outgroupSamples, sampleNames))
+
+  outputSVDTreePath = gsub(paste0("nexus"), "tre", workingNexusFilePath)
+  
+  # Write commands with outgroup line if outgroup is present, else omit that line
+  paupCommands = paste0(
+  "begin paup;\n",
+  "execute ", setsPath, ";\n",
+  if (length(outgroupBlockNumbers) > 0) paste0("outgroup ", paste(outgroupBlockNumbers, collapse = " "), ";\n") else "",
+  "svdq taxpartition = ", taxPartitionName, 
+  " bootstrap=standard nrep=", bootstrapReps, 
+  " nquartets=", quartetNum, 
+  " nthreads=", threadNum, 
+  " seed=", seedNum, 
+  " treeFile=", outputSVDTreePath, ";\n",
+  "SaveTrees file=", paste0(folderPath, SVDQPath, subsetAndFilterString, ".tre"), ";\n",
+  "quit;\n",
+  "end;\n"
+)
+
+   
+    paupCommandsPath = paste0(folderPath,SVDQPath,"PaupCommand","A.nex")
+    writeLines(paupCommands, paupCommandsPath)
+    system(paste0(folderPath,SoftwarePath,"paup4a168_osx -n ",paupCommandsPath))
+
+  }
+
+
+```
+
+</details>
+
+<br>
+<br>
+After the code saves as a .tre file, we must manually change the species tip colors to match the DAPC populations in the other analyses.
+<br>
+<br>
+
+![SVDQ](https://github.com/mellamoadam/CladoScope/blob/main/Images/SVDQ.png)
+<br>
+<br>
+
+# DTrios
+
+<details>
+<summary>DSuite DTrios</summary>
+<br>
+<br>
+          
+```r
+
+################################# USER INPUTS ################################## 
+
+# Set list of VCF subset file paths to perform DSuite on (generally no outgroup and MAC/MAF filters on)
+DSuiteBestFilterList = bestFilterSetsOutgroupIncludedWithMACMAF
+
+# Population map to use
+initializeDSuitePopMap = PopMapDAPC
+
+# Append samplesToRemove with hybrid samples for DSuite samplesToRemove contains samples that are of poor quality or cannot be used for some reason. hybridSamples can be identified by PCA, IQ-Tree etc.
+samplesToRemoveDSuite = c(samplesToRemove, hybridSamples)
+
+# Add H_jani_Other samples to samplesToRemoveDSuite if using matchDFJaniSplit
+if (identical(initializeDSuitePopMap, matchDFJaniSplit)){
+  samplesToRemoveDSuite=union(samplesToRemoveDSuite, janiGroups$H_jani_Other)
+}
+
+# Set treeInput = TRUE if inputting a tree into Dtrios
+treeInput = TRUE
+# The tree below is an SVDQ output. This is subset based on the populations present in the VCF subset in the loop below.
+
+treeString="((((((H_affinis,H_torquata),((((H_catalinae,sp_nov_2),sp_nov_1),(H_chlorophaea_chlorophaea,(H_chlorophaea_deserticola_2,(H_chlorophaea_deserticola_1,H_chlorophaea_loreala)))),H_unaocularus)),((H_ochrorhyncha_baueri,H_ochrorhyncha_ochrorhyncha),(H_ochrorhyncha_klauberi,H_ochrorhyncha_nuchalata))),(H_jani_texana_Pop1,(H_jani_texana_Pop2,H_jani_texana_Pop3))),H_slevini),Outgroup);"
+
+
+################################################################################ 
+  
+
+for (currentBestFilterDSuite in DSuiteBestFilterList){
+     
+      # Add in outgroup samples if they aren't in the initializeDSuitePopMap
+      missingOutgroupSamples = outgroupSamples[!outgroupSamples %in% initializeDSuitePopMap$Sample]
+      
+      if (length(missingOutgroupSamples) > 0) {
+        outgroupRows = data.frame(Sample = missingOutgroupSamples, PopulationDAPC = outgroupPopName)
+        initializeDSuitePopMap = rbind(initializeDSuitePopMap, outgroupRows)
+      }
+      
+      # Name of current popsOfInterest group name
+      currentSubset = str_extract(currentBestFilterDSuite, paste0("(?<=",rawString,").*?(?=Outgroup)"))
+
+      # Read in VCF to do modifications
+      currentVCFDSuite = read.vcfR(paste0(folderPath, VCFPath, currentBestFilterDSuite, ".vcf"))
+      
+   
+      currentVCFSamples = colnames((currentVCFDSuite)@gt)[-1]
+      filteredVCFSamples = currentVCFSamples[!(currentVCFSamples %in% samplesToRemoveDSuite)]
+      
+      # Subset the currentVCFDSuite samples to remove samplesToRemoveDSuite. (Subset cols, appending TRUE to beginning to include 'FORMAT' header col)
+      vcfSubset = currentVCFDSuite[, c(TRUE, colnames(currentVCFDSuite@gt)[-1] %in% filteredVCFSamples)] 
+ 
+      vcfDSuitePath = paste0(folderPath,DsuitePath,currentBestFilterDSuite,".vcf")
+      
+      # Save modified VCF to vcfDSuitePath
+      con=file(vcfDSuitePath, "w")
+      writeLines(vcfSubset@meta,con) 
+      bodyDF=as.data.frame(vcfSubset@fix)
+      colnames(bodyDF)[colnames(bodyDF) == 'CHROM'] <- '#CHROM' 
+      
+      write.table(cbind(bodyDF,vcfSubset@gt),file=con,sep="\t",quote=FALSE,row.names=FALSE,col.names=TRUE) #Write the VCF body to the file with no header row and no row names
+      close(con) #Close the file connection
+    
+      
+      DSuitePopMap = initializeDSuitePopMap
+      DSuitePopMap = DSuitePopMap[DSuitePopMap$Sample %in% filteredVCFSamples,]
+      
+      
+      # Dynamically change outgroup population name to "Outgroup" for Dsuite input
+      outgroupPopName = DSuitePopMap[DSuitePopMap$Sample == (outgroupSamples[1]),]$Population
+      DSuitePopMap$Population[DSuitePopMap$Population == outgroupPopName] = "Outgroup"
+      rownames(DSuitePopMap) = NULL
+      
+      # Populations in current NULL# Populations in current vcf
+      currentPops = gsub(pattern = "Outgroup", replacement= "", paste(unique(DSuitePopMap$Population), collapse = ""))
+      
+      
+      currentVCFDSuitePopmapFilePath = paste0(folderPath, DsuitePath, currentSubset,'DSuitePopmap.txt')
+      con = file(currentVCFDSuitePopmapFilePath, "w")
+      write.table(cbind(DSuitePopMap$Sample, DSuitePopMap$Population), file=con,sep="\t", quote=FALSE, row.names = FALSE, col.names = FALSE)
+      close(con) 
+            
+      
+      currentTree = read.tree(text = treeString)
+      currentTree = root(currentTree, outgroup= "Outgroup",resolve.root=TRUE)
+            
+      # Lowercase the tip labels and population names
+      treeTipsLower = tolower(currentTree$tip.label)
+      popListLower = tolower(unique(DSuitePopMap$Population))
+      
+      # Find the original tip labels that match the lowercase population list
+      tipsToKeep = currentTree$tip.label[treeTipsLower %in% popListLower]
+      
+      # Keep only those matching tips in the tree
+      currentTree = keep.tip(currentTree, tipsToKeep)
+
+      currentTreeFilePath=paste0(folderPath, DsuitePath, currentSubset,"DSuite.nwk")
+      write.tree(currentTree, file = currentTreeFilePath)
+      
+      # Now Run Dtrios with or without inputting a tree
+      if (treeInput){
+        system(paste0(DtriosSWPath," Dtrios ", vcfDSuitePath," ", currentVCFDSuitePopmapFilePath," -t ", currentTreeFilePath))
+      }else{
+        system(paste0(DtriosSWPath," Dtrios ", vcfDSuitePath," ", currentVCFDSuitePopmapFilePath))
+      }
+      
+      # Run FBranch
+      currentFValsFilePath = paste0(folderPath, DsuitePath, currentSubset, 'DSuitePopmap_tree.txt')
+      outputFBranchFile = paste0(folderPath,DsuitePath, currentSubset, "DSuiteFBranch.txt")
+      system(paste0(DtriosSWPath," Fbranch ", currentTreeFilePath, " ", currentFValsFilePath, " > ", outputFBranchFile))
+
+      
+      # Plot FBranch
+      system(paste0(pythonPath," ", DSuiteFBranchSWPath, " --outgroup Outgroup --ladderize -n ", currentSubset, "fbranch", " ", outputFBranchFile, " ", currentTreeFilePath))
+
+      # Define the file pattern and move images to DSuite folder
+      sourceFiles = list.files(pattern = paste0("^", currentSubset, "fbranch"))
+      
+      # Move each image to the destination folder
+      for (file in sourceFiles) {
+        file.rename(file, file.path(paste0(folderPath, DsuitePath), basename(file)))
+      }
+      
+      # Calculate Z scores and overwrite outputFBranchFile since the z-scores in the file interfere with plotting fbranch, so do it now.
+      system(paste0(DtriosSWPath, " Fbranch -Z ", currentTreeFilePath, " ", currentFValsFilePath, " > ", outputFBranchFile))
+
+      BBAAData = read.delim(paste0(folderPath, DsuitePath, currentSubset, "DSuitePopmap_BBAA.txt"))
+      
+      # Calculate the average p-value for each combination of P2 and P3 across all P1 values
+      BBAADataAVG = BBAAData %>%
+        group_by(P2, P3) %>%
+        summarise(
+          pValAvg = mean(p.value, na.rm = TRUE),  # Calculate the average p-value
+          DstatAvg = mean(Dstatistic, na.rm = TRUE),  # Calculate the average Dstatistic
+          .groups = "drop"
+        ) %>%
+        mutate(
+          p_value_text = formatC(pValAvg, format = "f", digits = 3), 
+          Dstat_text = formatC(DstatAvg, format = "f", digits = 3)  
+        )
+      
+      #Multiply D-statistic by P-value to get estimate of impact to introgression 
+      BBAADataAVG$DStatXPVal = abs(log10(as.numeric(BBAADataAVG$pValAvg))) * as.numeric(BBAADataAVG$DstatAvg)
+      
+      # Define the output PDF file
+      pdf(paste0(folderPath,DsuitePath,currentSubset,"ABBAPVals_Avg.pdf"), width = 10, height = 8)
+
+      
+################################################################################ 
+
+      
+##################################### PLOT ##################################### 
+      # Create the heatmap for the averaged p-values
+      p1 = ggplot(BBAADataAVG, aes(x = P2, y = P3, fill = pValAvg)) +
+        geom_tile(color = "white") +
+        geom_text(aes(label = p_value_text), color = "black", size = 2) + 
+        scale_fill_gradient2(low = "red", high = "white", midpoint = 0.5, limits = c(0, 1)) +
+        theme_minimal() +
+        theme(
+          axis.text.x = element_text(angle = 45, hjust = 1),
+          panel.grid.major = element_blank(),  # Remove major grid lines
+          panel.grid.minor = element_blank(),  # Remove minor grid lines
+          panel.border = element_rect(color = "black", fill = NA, size = 1)  # Add border around plot
+        ) +
+        labs(
+          title = "Heatmap of Average p-values across all P1",
+          x = "P2",
+          y = "P3",
+          fill = "Average p-value"
+        )
+      
+      
+##################################### PLOT ##################################### 
+      p2 = ggplot(BBAADataAVG, aes(x = P2, y = P3, fill = DstatAvg)) +
+        geom_tile(color = "white") +
+        geom_text(aes(label = Dstat_text), color = "black", size = 2) +  
+        scale_fill_gradient2(low = "white", high = "blue", midpoint = 0.5, limits = c(0, 1)) +
+        theme_minimal() +
+        theme(
+          axis.text.x = element_text(angle = 45, hjust = 1),
+          panel.grid.major = element_blank(),  # Remove major grid lines
+          panel.grid.minor = element_blank(),  # Remove minor grid lines
+          panel.border = element_rect(color = "black", fill = NA, size = 1)  # Add border around plot
+        ) +
+        labs(
+          title = "Heatmap of Average D-Statistics across all P1",
+          x = "P2",
+          y = "P3",
+          fill = "Average D-stat"
+        )
+      
+################################################################################ 
+
+      
+      
+##################################### PLOT ##################################### 
+      heatmapScaleDStatXPValUpperLimit = median(BBAADataAVG$DStatXPVal, na.rm=TRUE) + 1 *  sd(BBAADataAVG$DStatXPVal, na.rm = TRUE)
+
+      p3 = ggplot(BBAADataAVG, aes(x = P2, y = P3, fill = DStatXPVal)) +
+        geom_tile(color = "white") +
+        #geom_text(aes(label = Dstat_text), color = "black", size = 2) +  
+        scale_fill_gradient2(low = "white", high = "purple",midpoint = heatmapScaleDStatXPValUpperLimit/2, limits = c(0,heatmapScaleDStatXPValUpperLimit)) +
+        theme_minimal() +
+        theme(
+          axis.text.x = element_text(angle = 45, hjust = 1),
+          panel.grid.major = element_blank(),  # Remove major grid lines
+          panel.grid.minor = element_blank(),  # Remove minor grid lines
+          panel.border = element_rect(color = "black", fill = NA, size = 1)  # Add border around plot
+        ) +
+        labs(
+          title = "Heatmap of Average D-Statistics across all P1",
+          x = "P2",
+          y = "P3",
+          fill = "Average D-stat"
+        )
+      
+      
+      grid.arrange(p1, p2, ncol=1)
+      p5 = plot(currentTree)
+      
+################################################################################ 
+      
+      dev.off()
+      
+}
+
+```
+
+</details>
+
+<br>
+<br>
+This analysis generates estimates of gene flow between populations using D-statistics (ABBA-BABA tests) computed across all possible trios. The resulting values are visualized as a heatmap, which highlights patterns of introgression between lineages. Warmer colors indicate stronger signals of gene flow, helping to identify which population pairs may have exchanged genetic material.
+<br>
+<br>
+
+![Dsuite](https://github.com/mellamoadam/CladoScope/blob/main/Images/dsuite.png)
+<br>
+<br>
+
+# Isolation by Distance and Environment
+
+<details>
+<summary>MMRR</summary>
+<br>
 <br>
           
 ```r
 
 
+################################# USER INPUTS ################################## 
+
+# Set list of VCF subset file paths to perform Isolation on (generally no outgroup and MAC/MAF filters off)
+isolationBestFilterList = bestFilterSetsOutgroupOmittedNoMACMAF
+
+# Population map to use
+initializeIsolationPopMap = PopMapDAPC
+
+# Append samplesToRemove with hybrid samples for SVDQ. samplesToRemove contains samples that are of poor quality or cannot be used for some reason. hybridSamples can be identified by PCA, IQ-Tree etc.
+samplesToRemoveIsolation = c(samplesToRemove, hybridSamples)
+
+# Add H_jani_Other samples to samplesToRemoveIsolation if using matchDFJaniSplit
+if (identical(initializeIsolationPopMap, matchDFJaniSplit)){
+  samplesToRemoveIsolation = union(samplesToRemoveIsolation, janiGroups$H_jani_Other)
+}
+
+################################################################################ 
+
+pdf(file=paste0(folderPath,pdfPath,isolationPath,"Isolation.pdf"))
+
+for (currentBestFilterIsolation in isolationBestFilterList){
+
+  # Name of current popsOfInterest group name
+  currentSubset = str_extract(currentBestFilterIsolation, paste0("(?<=", rawString, ").*?(?=Outgroup)"))
+
+  # Read in VCF to do modifications
+  currentVCFIsolation = read.vcfR(paste0(folderPath, VCFPath, currentBestFilterIsolation, ".vcf"))
+  
+
+  currentVCFSamples = colnames((currentVCFIsolation)@gt)[-1]
+  filteredVCFSamples = currentVCFSamples[!(currentVCFSamples %in% samplesToRemoveIsolation)]
+  
+  # Subset the currentVCFIsolation samples to remove samplesToRemoveIsolation (Subset cols, appending TRUE to beginning to include 'FORMAT' header col)
+  vcfSubset = currentVCFIsolation[, c(TRUE, colnames(currentVCFIsolation@gt)[-1] %in% filteredVCFSamples)] 
+
+  vcfIsolationPath = paste0(folderPath, isolationPath, currentBestFilterIsolation,".vcf")
+  
+  # Save modified VCF to vcfIsolationPath
+  con=file(vcfIsolationPath, "w")
+  writeLines(vcfSubset@meta,con) 
+  bodyDF=as.data.frame(vcfSubset@fix)
+  colnames(bodyDF)[colnames(bodyDF) == 'CHROM'] <- '#CHROM' 
+  
+  write.table(cbind(bodyDF,vcfSubset@gt),file=con,sep="\t",quote=FALSE,row.names=FALSE,col.names=TRUE) #Write the VCF body to the file with no header row and no row names
+  close(con) #Close the file connection
+
+  
+  isolationPopMap = initializeIsolationPopMap
+  isolationPopMap = isolationPopMap[isolationPopMap$Sample %in% filteredVCFSamples,]
+  
+  # Ensure that the order of vcf samples matches coordinates$ID
+  isolationCoordinates = coordinates[coordinates$ID %in% colnames(vcfSubset@gt)[-1], ]
+  isolationCoordinates = isolationCoordinates[match(colnames(vcfSubset@gt)[-1], isolationCoordinates$ID), ]
+  isolationCoordinates = isolationCoordinates[, c("Latitude","Longitude")]
+  
+  # Pull environmental variables at each sample coordinates
+  extracted = list()
+  for (sampleNum in 1:nrow(isolationCoordinates)){
+      lon = isolationCoordinates[sampleNum,2]
+      lat = isolationCoordinates[sampleNum,1]
+      
+      test = worldclim_tile("bio",
+                             lon = lon,
+                             lat = lat,
+                             path = "WorldClimData")
+      
+      extracted[[sampleNum]]=data.frame(unname(terra::extract(test,matrix(c(lon,lat),ncol=2))))
+  }
+  
+  environmentalData = do.call(rbind, extracted)
+  colnames(environmentalData)=paste0("bio", 1:19)
+
+
+  
+  # Some environmental data may not be able to be found for certain coordinates. Delete these samples and associated data.
+  NARowLogical = apply(environmentalData, 1, function(row) all(is.na(row)))
+  NARows = which(NARowLogical)
+  
+  environmentalData = environmentalData[!NARowLogical, ]
+  row.names(environmentalData) = NULL
+  
+  isolationCoordinates = isolationCoordinates[!NARowLogical, ]
+  row.names(isolationCoordinates)=NULL
+  
+  
+  # Create traw file on subset vcf in isolationPath, read it in
+  system(paste0("plink --vcf ", vcfIsolationPath, " --recode A-transpose --out ", folderPath, isolationPath, currentBestFilterIsolation," --const-fid 0 --allow-extra-chr --chr-set 95"))
+
+  isolationTrawFile = paste0(folderPath, isolationPath, currentBestFilterIsolation,".traw")
+  tableTraw = read.table(isolationTrawFile, header=TRUE)
+  
+  # Subset columns to only include GT data and rm "X0_" from sample names 
+  isolationGeneticX = data.frame(tableTraw)[-c(1:6)] 
+  colnames(isolationGeneticX) = gsub("^X0_", "", colnames(isolationGeneticX))
+  
+  # Change any characters to numbers, transpose, get rid of all NA samples, mean impute 
+  isolationGeneticX %>% mutate_if(is.character, as.numeric)
+  isolationGeneticX = t(isolationGeneticX) 
+  isolationGeneticX = isolationGeneticX[, colSums(is.na(isolationGeneticX)) < nrow(isolationGeneticX)] 
+  isolationGeneticX = na.aggregate(isolationGeneticX)
+  isolationGeneticX = as.matrix(isolationGeneticX)
+  
+  # Remove any samples that don't have environmental data
+  isolationGeneticX = isolationGeneticX[!NARowLogical,]
+  
+  # Center, perform PCA, and keep all PCs
+  pcaEnvironmentalData = dudi.pca(environmentalData,nf=nrow(environmentalData), center=TRUE, scale=FALSE,scannf=FALSE) 
+  
+  # Calc distance matrix
+  geneticDist = dist(isolationGeneticX, method = "euclidean")^2
+  geneticDistMat = as.matrix(geneticDist)
+  rownames(geneticDistMat) = rownames(isolationGeneticX)
+  colnames(geneticDistMat) = rownames(isolationGeneticX)
+
+  
+  # Calculate environmental distances
+  environmentalDataPCs = 2 # Keep this many PCs for env data
+  isolationEnvironX = env_dist(pcaEnvironmentalData$li[,1:environmentalDataPCs])
+  
+  # Add geographic distance to X
+  isolationEnvironX[["geodist"]] = geo_dist(isolationCoordinates)
+
+##################################### PLOT ##################################### 
+  plot(1, type="n", xlab="", ylab="", xlim=c(0,1), ylim=c(0,1), axes=FALSE)
+  text(0.5, .9, paste(currentSubset), cex=.7, pos=3, font=2)
+  text(0.5, 0.5, paste(unique(isolationPopMap$Population), collapse="\n"), cex=.5, pos=3, font=2)
+  text(0.5, 0.2, paste("Removed", sum(NARowLogical), "samples.\nNo env data @ coords"), cex=0.5, pos=3)
+  wrappedText = paste(currentBestFilterIsolation, collapse="\n")  # Ensure proper line breaks
+  text(0.5, 0.1, wrappedText, cex=0.25, pos=3)
+  
+################################################################################ 
+  
+  loadingsSquared = pcaEnvironmentalData$c1[,1:2]^2
+  
+  # Compute percentage contribution for each PC
+  loadingsPercentages=sweep(loadingsSquared, 2, colSums(loadingsSquared), FUN = "/") * 100
+  
+  # Convert to data frame
+  loadingDF = data.frame(Variable = rownames(pcaEnvironmentalData$c1),
+                          PC1 = loadingsPercentages[,1], 
+                          PC2 = loadingsPercentages[,2])
+  
+    
+  # Get variance explained by each PC
+  pcVar = pcaEnvironmentalData$eig/sum(pcaEnvironmentalData$eig)*100
+
+  # Plot for PC1
+  p1 = ggplot(loadingDF, aes(y = PC1, x = reorder(Variable, PC1, decreasing = TRUE))) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = paste0("PC1 Loadings (", round(pcVar[1], 1), "% Variation)"),
+       x = "", y = "Percentage Contribution") +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(),  
+        panel.grid.minor = element_blank(),  
+        panel.background = element_blank(),
+        axis.text.x = element_text(angle = 90, hjust = 1))  # Rotate x-axis labels
+
+grid.arrange(p1, ncol = 1)
+
+  
+  p2 = ggplot(loadingDF, aes(y = PC2, x = reorder(Variable, PC2, decreasing = TRUE))) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = paste0("PC2 Loadings (", round(pcVar[2], 1), "% Variation)"),
+       x = "", y = "Percentage Contribution") +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(),  
+        panel.grid.minor = element_blank(),  
+        panel.background = element_blank(),
+        axis.text.x = element_text(angle = 90, hjust = 1))  # Rotate x-axis labels
+
+grid.arrange(p2, ncol = 1)
+  
+  
+  # Run isolation by distance/environment
+  resultsFull = mmrr_run(geneticDistMat, isolationEnvironX, nperm = 1000, stdz = TRUE, model = "full")
+  mmrr_plot(geneticDistMat, isolationEnvironX, mod = resultsFull$mod, plot_type = "vars", stdz = TRUE)
+  mmrr_plot(geneticDistMat, isolationEnvironX, mod = resultsFull$mod, plot_type = "fitted", stdz = TRUE)
+  mmrr_plot(geneticDistMat, isolationEnvironX, mod = resultsFull$mod, plot_type = "cov", stdz = TRUE)
+  plot(1, type = "n", xlab = "", ylab = "", xlim = c(0, 1), ylim = c(0, 1), axes = FALSE)
+  mmrrOutput = as.data.frame(mmrr_table(resultsFull, digits = 2, summary_stats = TRUE),row.names = NULL)
+  rownames(mmrrOutput) = NULL
+  
+  # Display table without borders or shading
+  mmrrOutput = mmrrOutput %>% rename("Variable" = var, "Estimate" = estimate, "p-Value" = p)
+  grid.table(mmrrOutput, theme = ttheme_minimal(
+    core = list(fg_params = list(fontsize = 12)),
+    colhead = list(fg_params = list(fontsize = 14, fontface = "bold"))
+  ))
+
+  write.table(resultsFull$coeff_df, file=paste0(folderPath, isolationPath, currentBestFilterIsolation, "IsolationResults.txt"), sep="\t", quote=FALSE, row.names=FALSE, col.names=FALSE) 
+  
+}
+dev.off()
+
+
 ```
+
 </details>
 
+<br>
+<br>
+This analysis generates estimates of gene flow between populations using D-statistics (ABBA-BABA tests) computed across all possible trios. The resulting values are visualized as a heatmap, which highlights patterns of introgression between lineages. Warmer colors indicate stronger signals of gene flow, helping to identify which population pairs may have exchanged genetic material.
+<br>
+<br>
+
+![Dsuite](https://github.com/mellamoadam/CladoScope/blob/main/Images/dsuite.png)
+<br>
+<br>
+
+# Isolation by Distance and Environment
+We used Multiple Matrix Regression with Randomization (MMRR) to test for isolation by distance (IBD) and isolation by environment (IBE) as implemented by Wang, 2013. This method assesses how genetic distances between individuals or populations are explained by geographic and environmental distances. By fitting both predictors in the same model, MMRR helps disentangle their relative contributions to genetic structure. This approach allows us to quantify how much spatial separation and ecological differences contribute to observed patterns of genetic divergence.
+<details>
+<summary>MMRR</summary>
+<br>
+<br>
+          
+```r
 
 
 
@@ -2017,6 +2639,12 @@ This section shows three plots that bring together results from PCA, DAPC, and A
 
 
 
+
+# References
+
+Alexander DH, Novembre J, Lange K. Fast model-based estimation of ancestry in unrelated individuals. Genome Res. 2009 Sep;19(9):1655-64. doi: 10.1101/gr.094052.109.
+
+Wang IJ. Examining the full effects of landscape heterogeneity on spatial genetic variation: a multiple matrix regression approach for quantifying geographic and ecological isolation. Evolution. 2013 Dec;67(12):3403-11. doi: 10.1111/evo.12134.
 
 
 

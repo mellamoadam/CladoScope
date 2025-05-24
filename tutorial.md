@@ -1820,89 +1820,6 @@ file.remove(  AdmixtureBarSubsetsPDFList  )
 <br>
 The plots above is an example of the results generated from ADMIXTURE analysis. Ancestral proportions are plotted as pie charts based on sampling locations. Various ancestral component values (K) are plotted for comparison purposes.  
 
-
-# Color Coordinated Plots
-After performing PCA, DAPC, and ADMIXTURE, we take our results and create plots that color coordinate the populations based on their respective DAPC populations. Here, the optimal ADMIXTURE ancestral proportion K-value is choosen as the minimum AIC value from k-means on each respective subset.
-<br>
-<br>
-<details>
-<summary>Color coordinated plots</summary>
-<br>
-          
-```r
-# In order to match the coloration of IQ Trees populations, DAPC Groups, and Admixture plots, we make TreeColPopMap that 
-
-################################# USER INPUTS  #################################
-# The following is for color coordinating DAPC, Admixture, and IQ-Trees
-# We cannot just take the population assignments from the "All" subset in DAPC since because we want to grab the population assignments from each of the subsets, then manually name the assignments of the other populations after.
-popAssignmentSubsets = c("Ochrorhyncha", "Jani", "ChlorophaeaSpNov1SpNov2TorquataUnaocularusCatalinae")
-
-# Depending on how extensive the coverage of popAssignmentSubsets is, there may be some samples that don't have a named population. Define which population map to pull from for this assignment. Note that TreeColPopMap is created using DAPCAssignments, which doesn't contain any hybridSamples because it is based on the traw file that had those samples removed before analyses.
-otherPopsPopMapMatchDF = matchDFJaniSplit
-
-################################################################################
-
-
-# Create the new dataframe for color coordination
-TreeColPopMap = DAPCAssignments %>%
-  filter(Subset %in% popAssignmentSubsets | Subset == "All") %>%
-  distinct(Sample, .keep_all = TRUE) %>%
-  mutate(Population = case_when(
-    Subset %in% popAssignmentSubsets ~ paste(Subset, pop, sep = "_"),  # Concatenate Subset and pop for valid subsets
-    TRUE ~ "Other"  # Assign "Other" for non-valid subsets
-  )) 
-TreeColPopMap = TreeColPopMap[, colnames(TreeColPopMap) %in% c("Sample", "Population", "Subset")]
-
-# Match these "Other" samples to their otherPopsPopMapMatchDF Population
-TreeColPopMap$Population[TreeColPopMap$Population == "Other"] = otherPopsPopMapMatchDF$Population[match(TreeColPopMap$Sample[TreeColPopMap$Population == "Other"], otherPopsPopMapMatchDF$Sample)]
-
-numColors = length(unique(TreeColPopMap$Population))
-colorPops = distinctColorPalette(length(unique(TreeColPopMap$Population)))
-
-# If there are more than 12 populations, generate more distinct colors
-if (numColors > 12) {
-  colorPops = colorRampPalette(colorPops)(numColors)
-}
-
-# Create a vector with population names as keys and colors as values
-popColorMap = setNames(colorPops, unique(TreeColPopMap$Population))
-
-# Assign colors to the Color column in TreeColPopMap based on Population
-TreeColPopMap$Color = popColorMap[TreeColPopMap$Population]
-
-
-# Now TreeColPopMap contains the Sample, Population, Subset used for the population assignment, and Color. For some analyses, we might want to name these populations more clearly than by "subset_pop", so we create a new column PopulationDAPC and create grpDFPopmapCoordsDFAllColorCoordination to also include associated coordinates. This population map is called PopMapDAPC.
-
-grpDFPopmapCoordsDFAllColorCoordination = merge(grpDFPopmapCoordsDFAll, TreeColPopMap[, c("Sample", "Color", "Subset")], by = "Sample", all.x = TRUE)
-
-# Make a color map
-colorMapping = data.frame(
-  Color = unique(grpDFPopmapCoordsDFAllColorCoordination$Color),
-  UniqueNumber = seq_along(unique(grpDFPopmapCoordsDFAllColorCoordination$Color))
-)
-
-# Merge the mapping back into the main data frame
-grpDFPopmapCoordsDFAllColorCoordination = merge(grpDFPopmapCoordsDFAllColorCoordination, colorMapping, by = "Color", all.x = TRUE)
-
-majorityMap = grpDFPopmapCoordsDFAllColorCoordination %>%
-  group_by(UniqueNumber, Population) %>%
-  tally() %>%
-  slice_max(order_by = n, n = 1, with_ties = FALSE) %>%
-  ungroup()
-
-majorityMap$Population = as.character(majorityMap$Population)
-dupCounts = ave(majorityMap$Population, majorityMap$Population, FUN = seq_along)
-duplicatedNames = duplicated(majorityMap$Population) | duplicated(majorityMap$Population, fromLast = TRUE)
-majorityMap$Population[duplicatedNames] = paste0(majorityMap$Population[duplicatedNames], "_", dupCounts[duplicatedNames])
-
-grpDFPopmapCoordsDFAllColorCoordination = grpDFPopmapCoordsDFAllColorCoordination %>%
-  left_join(majorityMap[, c("UniqueNumber", "Population")], by = "UniqueNumber") %>%
-  rename(PopulationDAPC = Population.y)
-
-PopMapDAPC = grpDFPopmapCoordsDFAllColorCoordination[, c("Sample", "PopulationDAPC")]
-
-```
-</details>
 <br>
 <br>
 
@@ -1995,6 +1912,91 @@ for (vcfTree in VCFTreePaths){
 treePDFList=mixedsort(list.files(path=paste0(folderPath,pdfPath,'Trees'), pattern=".pdf", all.files=TRUE, full.names=TRUE))
 allTreesPath=paste0(folderPath,pdfPath,rawString,"Trees.pdf")
 pdf_combine(input=c(treePDFList),output=allTreesPath)
+
+```
+</details>
+<br>
+<br>
+
+# Color Coordinated Plots
+After performing PCA, DAPC, and ADMIXTURE, we take our results and create plots that color coordinate the populations based on their respective DAPC populations. Here, the optimal ADMIXTURE ancestral proportion K-value is choosen as the minimum AIC value from k-means on each respective subset.
+<br>
+<br>
+<details>
+<summary>Color coordinated plots</summary>
+<br>
+          
+```r
+# In order to match the coloration of IQ Trees populations, DAPC Groups, and Admixture plots, we make TreeColPopMap that 
+
+################################# USER INPUTS  #################################
+# The following is for color coordinating DAPC, Admixture, and IQ-Trees
+# We cannot just take the population assignments from the "All" subset in DAPC since because we want to grab the population assignments from each of the subsets, then manually name the assignments of the other populations after.
+popAssignmentSubsets = c("Ochrorhyncha", "Jani", "ChlorophaeaSpNov1SpNov2TorquataUnaocularusCatalinae")
+
+# Depending on how extensive the coverage of popAssignmentSubsets is, there may be some samples that don't have a named population. Define which population map to pull from for this assignment. Note that TreeColPopMap is created using DAPCAssignments, which doesn't contain any hybridSamples because it is based on the traw file that had those samples removed before analyses.
+otherPopsPopMapMatchDF = matchDFJaniSplit
+
+################################################################################
+
+
+# Create the new dataframe for color coordination
+TreeColPopMap = DAPCAssignments %>%
+  filter(Subset %in% popAssignmentSubsets | Subset == "All") %>%
+  distinct(Sample, .keep_all = TRUE) %>%
+  mutate(Population = case_when(
+    Subset %in% popAssignmentSubsets ~ paste(Subset, pop, sep = "_"),  # Concatenate Subset and pop for valid subsets
+    TRUE ~ "Other"  # Assign "Other" for non-valid subsets
+  )) 
+TreeColPopMap = TreeColPopMap[, colnames(TreeColPopMap) %in% c("Sample", "Population", "Subset")]
+
+# Match these "Other" samples to their otherPopsPopMapMatchDF Population
+TreeColPopMap$Population[TreeColPopMap$Population == "Other"] = otherPopsPopMapMatchDF$Population[match(TreeColPopMap$Sample[TreeColPopMap$Population == "Other"], otherPopsPopMapMatchDF$Sample)]
+
+numColors = length(unique(TreeColPopMap$Population))
+colorPops = distinctColorPalette(length(unique(TreeColPopMap$Population)))
+
+# If there are more than 12 populations, generate more distinct colors
+if (numColors > 12) {
+  colorPops = colorRampPalette(colorPops)(numColors)
+}
+
+# Create a vector with population names as keys and colors as values
+popColorMap = setNames(colorPops, unique(TreeColPopMap$Population))
+
+# Assign colors to the Color column in TreeColPopMap based on Population
+TreeColPopMap$Color = popColorMap[TreeColPopMap$Population]
+
+
+# Now TreeColPopMap contains the Sample, Population, Subset used for the population assignment, and Color. For some analyses, we might want to name these populations more clearly than by "subset_pop", so we create a new column PopulationDAPC and create grpDFPopmapCoordsDFAllColorCoordination to also include associated coordinates. This population map is called PopMapDAPC.
+
+grpDFPopmapCoordsDFAllColorCoordination = merge(grpDFPopmapCoordsDFAll, TreeColPopMap[, c("Sample", "Color", "Subset")], by = "Sample", all.x = TRUE)
+
+# Make a color map
+colorMapping = data.frame(
+  Color = unique(grpDFPopmapCoordsDFAllColorCoordination$Color),
+  UniqueNumber = seq_along(unique(grpDFPopmapCoordsDFAllColorCoordination$Color))
+)
+
+# Merge the mapping back into the main data frame
+grpDFPopmapCoordsDFAllColorCoordination = merge(grpDFPopmapCoordsDFAllColorCoordination, colorMapping, by = "Color", all.x = TRUE)
+
+majorityMap = grpDFPopmapCoordsDFAllColorCoordination %>%
+  group_by(UniqueNumber, Population) %>%
+  tally() %>%
+  slice_max(order_by = n, n = 1, with_ties = FALSE) %>%
+  ungroup()
+
+majorityMap$Population = as.character(majorityMap$Population)
+dupCounts = ave(majorityMap$Population, majorityMap$Population, FUN = seq_along)
+duplicatedNames = duplicated(majorityMap$Population) | duplicated(majorityMap$Population, fromLast = TRUE)
+majorityMap$Population[duplicatedNames] = paste0(majorityMap$Population[duplicatedNames], "_", dupCounts[duplicatedNames])
+
+grpDFPopmapCoordsDFAllColorCoordination = grpDFPopmapCoordsDFAllColorCoordination %>%
+  left_join(majorityMap[, c("UniqueNumber", "Population")], by = "UniqueNumber") %>%
+  rename(PopulationDAPC = Population.y)
+
+PopMapDAPC = grpDFPopmapCoordsDFAllColorCoordination[, c("Sample", "PopulationDAPC")]
 
 ```
 </details>

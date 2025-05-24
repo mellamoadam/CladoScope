@@ -3,7 +3,7 @@ This repository provides CladoScope, a modular and iterative workflow for analyz
 Inputs:
 1. VCF file
 2. loci file (ipyrad output; only necessary for BPP analysis)
-3. matchDF, a population map estimate for samples and their corresponding assumed population
+3. `matchDF`, a population map estimate for samples and their corresponding assumed population
 4. Map files for regions of interest (.shp file often used for borders; .tiff file often used for terrain)
 
 Outputs:
@@ -20,7 +20,7 @@ Outputs:
 11. Analaysis output files for BPP
 12. Analaysis output files for DSuite (including heatmap grid of gene flow with Dtrios)
 
-First, we use matchDF in the CREATE POPULATION MAP section based on our best guess for a population map. Then in the section VCF FILTERING, we filter each subset separately, but some of these population assignments might not be accurate. This allows us to define the best filter sets to use in DAPC, which gives us group assignments for each sample in their respective subset. Once that is done, we can rerun the CREATE POPULATION MAP section with a more accurate matchDF that we manually update, and then run VCF FILTERING, and DAPC. This is necessary because running DAPC on an entire dataset might not give meaningful results if there is a large amount of diversity. 
+First, we use `matchDF` in the CREATE POPULATION MAP section based on our best guess for a population map. Then in the section VCF FILTERING, we filter each subset separately, but some of these population assignments might not be accurate. This allows us to define the best filter sets to use in DAPC, which gives us group assignments for each sample in their respective subset. Once that is done, we can rerun the CREATE POPULATION MAP section with a more accurate matchDF that we manually update, and then run VCF FILTERING, and DAPC. This is necessary because running DAPC on an entire dataset might not give meaningful results if there is a large amount of diversity. 
 
 Simply assuming the subset a sample belongs to based on geography or morphological characteristics is antithetical to the whole reason for doing genetic analyses, however, it can give us a good starting point (just to determine decent filtering schemes and initial DAPC assignments). For example, we may have an idea of population assignments based on previous studies, geographical barriers, and morphology.
 
@@ -30,4 +30,4 @@ Workflow Summary:<br>
     Step 3. Using "best" filter set, run IQ-TREE section. In this section, it is color coordinated with matchDF population assignments.<br> 
     Step 4. This can be used to identify if any samples fall outside of their assumed population assignment. Update matchDF and hybridSamples accordingly.<br>
     Step 5. Perform VCF FILTERING, FILTER SELECTION, DAPC etc. again with the updated subset definitions.<br>
-    Step 6. After running ADMIXTURE, update hybridSamples if neccesary.<br>
+    Step 6. After running ADMIXTURE, update `hybridSamples` if neccesary.<br>

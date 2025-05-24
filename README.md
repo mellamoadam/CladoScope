@@ -24,7 +24,7 @@ First, we use matchDF in the CREATE POPULATION MAP section based on our best gue
 
 Simply assuming the subset a sample belongs to based on geography or morphological characteristics is antithetical to the whole reason for doing genetic analyses, however, it can give us a good starting point (just to determine decent filtering schemes and initial DAPC assignments). For example, we may have an idea of population assignments based on previous studies, geographical barriers, and morphology.
 
-Workflow Summary: 
+Workflow Summary:<br>
   Step 1. Make population assignment assumptions based on prior knowledge and save in section CREATE POPULATION MAP (data frame matchDF).<br>
   Step 2. Run VCF FILTERING section and use output PDF to decide best filters, which are selected in section FILTER SELECTION.<br>
   Step 3. Using "best" filter set, run IQ-TREE section. In this section, it is color coordinated with matchDF population assignments.<br> 

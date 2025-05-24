@@ -1606,7 +1606,6 @@ dev.off()
 <br>
 <br>
 
-## Clustering Charts
 <br>
 <br>
 ![PCA DAPC Kmeans](https://github.com/mellamoadam/CladoScope/blob/main/Page1.png)
@@ -1812,7 +1811,6 @@ file.remove(  AdmixtureBarSubsetsPDFList  )
 ```
 </details>
 
-## ADMIXTURE Charts
 <br>
 <br>
 ![ADMIXTURE](https://github.com/mellamoadam/CladoScope/blob/main/ADMIXTURE.png)

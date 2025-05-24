@@ -136,6 +136,8 @@ library(magick)
 Now we can define and create local paths to user folders and software execution files that keep the results and temporary files organized. Must be adjusted to your own system.
 <br>
 
+
+
 <details>
 <summary>Define and create paths code</summary>
 <br>

@@ -9,11 +9,12 @@ As population groupings are reassessed and updated, the workflow enables increas
 <br>
 <br>
 
-# Load Packages
+# Data Preparation
+## Load Packages
 <details>
 <summary>Package loading code</summary>
 <br>
-          
+<br>          
 ```r
 install.packages("stringr")
 install.packages("smartsnp")
@@ -130,16 +131,13 @@ library(magick)
 ```
 </details>
 
-# Define and Create Paths
-
-<br>
+## Define and Create Paths
 Now we can define and create local paths to user folders and software execution files that keep the results and temporary files organized. Must be adjusted to your own system.
 <br>
 <br>
 <details>
 <summary>Define and create paths code</summary>
-<br>
-          
+<br>      
 ```r
 
 ################################# USER INPUTS  #################################
@@ -231,8 +229,7 @@ knitr::opts_knit$set(root.dir = folderPath)
 ```
 </details>
 
-# Pull Raw Data
-<br>
+## Pull Raw Data
 Pulling in raw data files including `coordinateFile` that contains sample coordinates, VCF file, map files (.shp and geojson for boundaries, .tiff for terrain). Includes a query for iNaturalist if specified that will later include citizen science observations as gray points in background of DAPC map.
 <br>
 <br>
@@ -277,8 +274,7 @@ inatCoords = read.csv(inatCoordsFile)
 ```
 </details>
 
-
-# Organize Map-Related Files
+## Organize Map-Related Files
 <br>
 We must convert terrain raster into RGB colors for map representation along with formatting coordinates file and map bounding boxes for plotting compatibility. We also subset maps for the political boundaries necessary for plotting our samples.
 <br>
@@ -286,7 +282,6 @@ We must convert terrain raster into RGB colors for map representation along with
 <details>
 <summary>Map-related organization code</summary>
 <br>
-
 ```r
 
 ################################# USER INPUTS  #################################
@@ -367,8 +362,7 @@ mexico = world[world$name == OtherCountriesInMap, ]
 ```
 </details>
 
-
-# Define and Iterate Population Map
+## Define and Iterate Population Map
 This is a section that will be iterated by the user after subsequent analyses. These variables can be empty during the initial run, or input based on some prior knowledge. Under the section USER INPUTS, the variables to change after subsequent analyses are the following:
           1. `samplesToRemove`: this variable can be manually changed if a fundamental error with a sample is observed.
           2. `hybridSamples`: this variable can be manually changed after running concatenated trees, PCA, DAPC, and ADMIXTURE to define a sample as being between observed populations.
@@ -380,8 +374,7 @@ Note that the USER INPUTS section of the code below reflects population assignme
 <br>
 <details>
 <summary>Population map code</summary>
-<br>
-          
+<br>       
 ```r
 
 ################################# USER INPUTS  #################################
@@ -505,13 +498,12 @@ write.table(
 
 
 # Filter Triage
-
 This section outlines how to perform VCF filtering using a grid-based approach, systematically varying thresholds across multiple parameters (i.e. MAC, MAF, individual missingness, site missingness, depth). By testing a wide range of combinations, we can identify filter sets that produce the most stable and informative outputs for downstream analysis. A critical component is defining `popsOfInterest`, which can start as a hypothesis based on monophyletic groups or closely related populations and then be refined iteratively as results from the concatenated tree, DAPC, and PCA are reviewed. 
 <details>
 <br>
 <br>
 <summary>Filtering triage code</summary>
-<br>
+<br>       
           
 ```r
 ################################# USER INPUTS  #################################
@@ -1157,26 +1149,20 @@ writeLines(c("VCFFileName\tSeqL" , paste(VCFFileNameList, seqLList, sep = "\t"))
 
 ```
 </details>
-
 <br>
 <br>
 For each combination of filter thresholds, a series of charts and analyses are generated to help determine the most appropriate filters for a given dataset. This process is difficult to fully automate because the optimal thresholds depend on the specific goals of downstream analyses, which can vary widely. Different biological systems may also prioritize different metrics. For instance, some taxa may require maximizing the number of SNPs, even if it means relaxing depth filters. The following charts are produced for each filter set to support this decision-making process.
-
 <br>
 <br>
-
 ## Filter Set Selection
-
-
 <br>
 <br>
 Using the charts above, we select the best filter sets for our dataset. 
 <br>
 <br>
-
 <details>
 <summary>Filter Selection</summary>
-<br>
+<br>      
           
 ```r
 
@@ -1287,7 +1273,6 @@ for (filterSet in convertToBed){
 The code below will convert the selected filter sets to the necessary file types for future analyses (.nexus, .bin.nexus, .traw, .phy).  
 <br>
 <br>
-
 <details>
 <summary>VCF Conversion</summary>
 <br>
@@ -1322,11 +1307,10 @@ for (filterSet in convertToTraw){
 ```
 </details>
 
-
 # Clustering
-
 <details>
 <summary>PCA, k-means, and DAPC</summary>
+<br>
 <br>
           
 ```r
@@ -1623,7 +1607,6 @@ dev.off()
 
 <br>
 <br>
-
 ## Clustering Charts
 <br>
 <br>
@@ -1631,9 +1614,7 @@ dev.off()
 <br>
 <br>
 The plots above illustrate results from several analyses, including PCA scree plots, AIC curves used to determine the optimal number of k-means clusters, 3D PCA visualizations, and Discriminant Analysis of Principal Components (DAPC). For the DAPC, we retain the principal components that collectively explain 80% of the total variance, and perform linear discriminant analysis using the number of clusters corresponding to the lowest AIC value from the k-means analysis.
-
-
-
+<br>
 <br>
 <details>
 <summary>First we install and load necessary packages</summary>

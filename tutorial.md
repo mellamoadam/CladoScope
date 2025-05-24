@@ -373,10 +373,6 @@ This is a section that will be iterated by the user after subsequent analyses. T
 <br>
 <br>
 Note that the USER INPUTS section of the code below reflects population assignments after iterative assignment. Initially, `hybridSamples` and `popChanges` were input as empty vectors. After running concatenated trees, PCA, DAPC, and ADMIXTURE, samples that were better classified as being in other or between two populations became more clear. Rerun these steps until the population map has converged and remains unchanged. In the example below, this required three iterations, but may take a few more for more complex systems.
-
-
-
-In the example shown, the subset for *Hypsiglena jani* showed clear   `janiGroups`
           
           
 
@@ -440,14 +436,6 @@ popRename = c(
   "spnov2" = "sp_nov_2"
 )
 
-janiGroups = list(
-  "H_jani_texana_Pop1" = c("DBS_868_jani_texana", "DBS_900_jani_texana", "LJV_10635_jani_texana","MHP_10783_jani_texana", "MHP_12366_jani_texana", "MHP_13388_jani_texana","MHP_8260_jani_texana", "MF_21713_jani_jani", "MF_21732_jani_dunklei"),
-  "H_jani_texana_Pop2" = c("AMNH_R_177719_jani_texana", "AMNH_R_504524_jani_texana", "AMNH_R_504527_jani_texana","CAS_228933_jani_texana", "CAS_228936_jani_texana", "CAS_228952_jani_texana","CAS_228965_jani_texana", "CAS_228965_jani_texana", "CAS_228966_jani_texana","CAS_228933_jani_texana", "CAS_228936_jani_texana", "CAS_228952_jani_texana","CAS_229281_jani_texana", "LSUMZ_84790_jani_texana","MSB_87826_jani_texana","UTAR_52351_jani_texana","MVZ_226235_spnov1xtexana"),
-  "H_jani_texana_Pop3" = c("MVZ_236398_jani_texana", "ROM_5256_jani_texana", "ROM_15100_jani_texana","UTAR_52350F_jani_texana", "ROM_15094_jani_texana", "AMNH_R_504773_jani_texana","AMNH_R_177724_jani_texana", "AMNH_R_177715_jani_texana", "AMNH_R_177717_jani_texana","AMNH_R_177718_jani_texana", "AMNH_R_177720_jani_texana", "AMNH_R_504400_jani_texana","AMNH_R_504604_jani_texana", "AMNH_R_504615_jani_texana", "AMNH_R_504616_jani_texana","AMNH_R_504630_jani_texana", "AMNH_R_504631_jani_texana", "AMNH_R_504632_jani_texana","AMNH_R_504653_jani_texana","CAS_228960_jani_texana","CAS_228962_jani_texana","CAS_229229_jani_texana","CAS_229231_jani_texana","CAS_229281_jani_texana","CAS_229920_jani_texana","AMNH_R_504773_jani_texana","CAS_228960_jani_texana","CAS_228962_jani_texana","CAS_228965_jani_texana","CAS_228966_jani_texana","CAS_229229_jani_texana","CAS_229231_jani_texana","CAS_229920_jani_texana","CR_409137_jani_texana","GDC_13619_jani_texana","GDC_13715_jani_texana","MSB_87874_jani_texana","MSB_87876_jani_texana","MVZ_236398_jani_texana","ROM_15094_jani_texana","ROM_15100_jani_texana","ROM_5256_jani_texana","SM_CO2B_jani_texana","UTAR_34835_jani_texana","UTAR_51983_jani_texana","UTAR_52350F_jani_texana","UTEP_14082_jani_texana","UTEP_16307_jani_texana","UTEP_16309_jani_texana","UTEP_16317_jani_texana","UTEP_18484_jani_texana"),
-   "H_jani_Other" = c("AMNH_R_504774_jani_jani","GDC_25928_jani_texana","MF_21713_jani_jani","MF_21732_jani_dunklei","UTEP_18438_jani_texana")
-)
-  
-
 # Create population map matchDF
 # All populations (besides spnov1xtexana because it interferes with the for loops below since grepl finds spnov1 twice) for matching with raw data and future grouping in plots. popNames matches strings contained in the samples to the populations in the original names of popRename.
 popNames = c("jani_texana",
@@ -499,14 +487,6 @@ pdf(file = PopmapSummaryPDFPath)
 grid.table(setNames(data.frame(table(matchDF$Population)), c("Population", "Count")) %>% arrange(desc(Count)), rows = NULL, theme = ttheme_minimal(base_size = 8, base_colour = "black"))
 dev.off()
 
-
-# Make matchDFUpdatedJaniSplit that splits jani texana into multiple populations 
-matchDFJaniSplit = matchDF
-
-for (pop in names(janiGroups)) {
-  matchDFJaniSplit$Population[matchDFJaniSplit$Sample %in% janiGroups[[pop]]] = pop
-}
-
 matchDF = matchDF[!(matchDF$Sample %in% samplesToRemove),]
 rownames(matchDF)=NULL
 
@@ -524,7 +504,7 @@ write.table(
 
 
 
-This section outlines how to perform VCF filtering using a grid-based approach, systematically varying thresholds across multiple parameters (i.e. MAC, MAF, individual missingness, site missingness, depth). By testing a wide range of combinations, we can identify filter sets that produce the most stable and informative outputs for downstream analysis. A critical component is defining `popsOfInterest`, which can start as a hypothesis based on monophyletic groups or closely related populations and then be refined iteratively as results from the concatenated tree, DAPC, and PCA are reviewed.
+This section outlines how to perform VCF filtering using a grid-based approach, systematically varying thresholds across multiple parameters (i.e. MAC, MAF, individual missingness, site missingness, depth). By testing a wide range of combinations, we can identify filter sets that produce the most stable and informative outputs for downstream analysis. A critical component is defining `popsOfInterest`, which can start as a hypothesis based on monophyletic groups or closely related populations and then be refined iteratively as results from the concatenated tree, DAPC, and PCA are reviewed. 
 
 <details>
 <br>
@@ -535,8 +515,8 @@ This section outlines how to perform VCF filtering using a grid-based approach, 
 ################################# USER INPUTS  #################################
 removeIndels = FALSE # Doesn't change VCF because all SNPs
 replaceMultiallelic = TRUE # Used to change the genotype of each indiv at each locus if there is an allele that is not ref or alt present.
-missingSitesThreshold = c(0.6, 0.7) # Lower is more stringent. This is max missing sites threshold
-missingIndivsThreshold = 0.92 #This is the threshold used for all samples besides outgroupSamples. If any sample in outgroupSamples has more than missingIndivsThreshold, it is still included in subset. Only applicable when includeOutgroup = TRUE.
+missingSitesThreshold = seq(0.6,0.9, by = 0.1) # Lower is more stringent. This is max missing sites threshold
+missingIndivsThreshold = seq(0.8,0.95, by = 0.03) # This is the threshold used for all samples besides outgroupSamples. If any sample in outgroupSamples has more than missingIndivsThreshold, it is still included in subset. Only applicable when includeOutgroup = TRUE.
 MACMinThreshold = 3
 MAFMinThreshold = 0.05
 MinMeanDPThreshold = 6
@@ -733,7 +713,6 @@ for (populations in 1:length(popsOfInterest)) {
         lowerXLim=-1
         upperXLim=quantile(depthDFDownSampled,0.99,na.rm=TRUE)
 
-        #depthDF=depthDF[depthDF$Depth<upperXLim,,drop=FALSE] #attempting to fix y axis limit but not working
         SNPxSamples=last(SNPsRemaining)*last(samplesRemaining)
         numSNPsRemovedMinDp=sum( (dp>0) & (dp<MinDPThreshold) )
         percentSNPsRemovedMinDp=round(numSNPsRemovedMinDp/SNPxSamples*100,2)
@@ -777,7 +756,7 @@ for (populations in 1:length(popsOfInterest)) {
         updateCounts(MaxDPThreshold)
 
         # Missing sites filter
-        missingSNPs=apply(extract.gt(vcfSubset), 1, function(x) all(is.na(x))) #Identify SNPs with all missing data. Applies function over all rows to check if all cols are missing for each SNPs
+        missingSNPs = apply(extract.gt(vcfSubset), 1, function(x) all(is.na(x))) # Identify SNPs with all missing data. Applies function over all rows to check if all cols are missing for each SNPs
 
 
 ##################################### PLOT #####################################
@@ -805,13 +784,13 @@ for (populations in 1:length(popsOfInterest)) {
 
 ################################################################################
 
-        vcfSubset=vcfSubset[!missingSNPs, ]
+        vcfSubset = vcfSubset[!missingSNPs, ]
 
 
-        gt=extract.gt(vcfSubset, element="GT", as.numeric=TRUE)
+        gt = extract.gt(vcfSubset, element="GT", as.numeric=TRUE)
 
         #Calculate missingness per site
-        missingRatePerSite=rowMeans(is.na(gt))
+        missingRatePerSite = rowMeans(is.na(gt))
 
 
 
@@ -820,8 +799,8 @@ for (populations in 1:length(popsOfInterest)) {
         lowerXLim = min(missingRatePerSite)*.99
         upperXLim = max(missingRatePerSite)*1.01
 
-        numSNPsRemovedSiteMissingness=sum(missingRatePerSite>missingSite)+sum(missingSNPs)
-        percentSNPsRemovedMissingSite=round(numSNPsRemovedSiteMissingness/last(SNPsRemaining)*100,3)
+        numSNPsRemovedSiteMissingness = sum(missingRatePerSite>missingSite)+sum(missingSNPs)
+        percentSNPsRemovedMissingSite = round(numSNPsRemovedSiteMissingness/last(SNPsRemaining)*100,3)
 
         p5 = ggplot(data.frame(missingRatePerSite), aes(x = missingRatePerSite)) +
         geom_histogram(bins = 30, fill = "steelblue", alpha = 0.5, color = "black") +
@@ -848,10 +827,10 @@ for (populations in 1:length(popsOfInterest)) {
         updateCounts(missingSite)
 
 
-        #Missing individuals filter
+        # Missing individuals filter
         missingRatePerInd=colMeans(is.na(gt))
 
-        #Set missingness threshold (e.g., remove individuals with >91% missing genotypes)
+        # Set missingness threshold (e.g., remove individuals with >91% missing genotypes)
         indivsToKeep=colnames(gt)[missingRatePerInd <= missingIndivsThreshold]
 
         # Add outgroups back in if this is an outgroup included file and they happened to be cut off by missingIndivsThreshold
@@ -865,8 +844,8 @@ for (populations in 1:length(popsOfInterest)) {
         lowerXLim = min(missingRatePerInd)*.99
         upperXLim = max(missingRatePerInd)*1.01
 
-        numSamplesRemovedIndMissingness=sum(missingRatePerInd>missingIndivsThreshold)
-        percentSamplesRemovedMissingInd=round(numSamplesRemovedIndMissingness/last(samplesRemaining)*100,3)
+        numSamplesRemovedIndMissingness = sum(missingRatePerInd>missingIndivsThreshold)
+        percentSamplesRemovedMissingInd = round(numSamplesRemovedIndMissingness/last(samplesRemaining)*100,3)
 
         p6 = ggplot(data.frame(missingRatePerInd), aes(x = missingRatePerInd)) +
         geom_histogram(bins = 20, fill = "steelblue", alpha = 0.5, color = "black") +
@@ -886,32 +865,27 @@ for (populations in 1:length(popsOfInterest)) {
 ################################################################################
 
 
-        vcfSubset=vcfSubset[, c(TRUE, colnames(vcfSubset@gt)[-1] %in% indivsToKeep)] #Subset cols, appending TRUE to beginning to include 'FORMAT' header col
+        vcfSubset = vcfSubset[, c(TRUE, colnames(vcfSubset@gt)[-1] %in% indivsToKeep)] #Subset cols, appending TRUE to beginning to include 'FORMAT' header col
 
         updateCounts(missingIndivsThreshold)
 
-        #Now filter MAC/MAF
-        gt=extract.gt(vcfSubset, element="GT", as.numeric=FALSE)  #Genotypes. Redo bc filtered out many in missing sites filter. May not be necessary though.
+        # Now filter MAC/MAF
+        gt = extract.gt(vcfSubset, element="GT", as.numeric=FALSE)  #Genotypes. Redo bc filtered out many in missing sites filter. May not be necessary though.
 
-        #Copy over because to manipulate because it can't be converted to numeric
-        gtNumeric=gt
-        #Their use of as.numeric=TRUE calls 1/1 as a 1 but for mac/maf we want to count this as a 2
-        gtNumeric[gtNumeric=="0/0"]=0
-        gtNumeric[gtNumeric=="0/1" | gtNumeric=="1/0"]=1
-        gtNumeric[gtNumeric=="1/1"]=2
+        # Copy over because to manipulate because it can't be converted to numeric
+        gtNumeric = gt
+        # Their use of as.numeric=TRUE calls 1/1 as a 1 but for mac/maf we want to count this as a 2
+        gtNumeric[gtNumeric == "0/0"] = 0
+        gtNumeric[gtNumeric == "0/1" | gtNumeric == "1/0"] = 1
+        gtNumeric[gtNumeric == "1/1"] = 2
 
-        gtNumeric=apply(gtNumeric, c(1, 2), as.numeric)
+        gtNumeric = apply(gtNumeric, c(1, 2), as.numeric)
 
-        #MAC/MAF. Remember, these are just sums across the loci. No hetero/homozygosity is taken into account.
-        mac=rowSums(gtNumeric,na.rm=TRUE)
-        maf=mac/(2*ncol(gt))  #x2 because diploid
+        # MAC/MAF. Remember, these are just sums across the loci. No hetero/homozygosity is taken into account.
+        mac = rowSums(gtNumeric, na.rm = TRUE)
+        maf = mac/(2*ncol(gt))  # x2 because diploid
 
-        macMafIndicesToKeep=which(
-          mac>=MACMinThreshold &
-            maf>=MAFMinThreshold)
-
-
-
+        macMafIndicesToKeep = which(mac >= MACMinThreshold & maf >= MAFMinThreshold)
 
 ##################################### PLOT #####################################
 
@@ -1182,6 +1156,13 @@ writeLines(c("VCFFileName\tSeqL" , paste(VCFFileNameList, seqLList, sep = "\t"))
 ```
 </details>
 
+<br>
+
+For each combination of filter thresholds, a series of charts and analyses are generated to help determine the most appropriate filters for a given dataset. This process is difficult to fully automate because the optimal thresholds depend on the specific goals of downstream analyses, which can vary widely. Different biological systems may also prioritize different metrics. For instance, some taxa may require maximizing the number of SNPs, even if it means relaxing depth filters. The following charts are produced for each filter set to support this decision-making process.
+
+<br>
+
+## Filter Set Selection Charts
 
 
 

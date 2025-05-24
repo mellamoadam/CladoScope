@@ -1912,8 +1912,6 @@ pdf_combine(input=c(treePDFList),output=allTreesPath)
 
 ```
 </details>
-<br>
-<br>
 
 # Color Coordinated Plots
 After performing PCA, DAPC, and ADMIXTURE, we take our results and create plots that color coordinate the populations based on their respective DAPC populations. Here, the optimal ADMIXTURE ancestral proportion K-value is choosen as the minimum AIC value from k-means on each respective subset.

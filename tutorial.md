@@ -2956,8 +2956,6 @@ clusterGadmaCommands = paste(clusterGadmaCommandList, collapse = " & ")
 
 # After running with (had to edit gadma plotting file code to make the axis label font sizes fit), go into each output folder and run python best_aic_model_moments_code.py which generates plot in that folder
 
-
-
 ```
 
 </details>
@@ -2972,40 +2970,347 @@ Here is an example of an output GADMA demographic history model.
 <br>
 <br>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# GADMA
-GADMA is a tool used to infer demographic history using the allele frequency spectra to estimate population history parameters. This approach helps reveal historical events like population splits, expansions, and gene flow that shaped current genetic variation. Here, we create text files needed to run GADMA. This analysis can be costly in terms of computational power, therefore, I recommend to run with `gadmaRunLocation` set to `clusterFolderPath`. This alters how the run files reference each other, and assumes the folder will be moved to the `clusterFolderPath` location.
+# BPP
+BPP uses the multispecies coalescent model to estimate species trees from multilocus data, accounting for variation in gene trees across loci (Flouri et al., 2018). It implements a full-likelihood Bayesian approach with MCMC. Here we create text files necessary to run BPP (for both algorithm 0 and 1). This analysis can be costly in terms of computational power, therefore, I recommend to run with `BPPRunLocation` set to `clusterFolderPath`. This alters how the run files reference each other, and assumes the folder will be moved to the `clusterFolderPath` location.
 <br>
 <br>
 <details>
-<summary>Gadma</summary>
+<summary>BPP</summary>
 <br>
 <br>
           
 ```r
 
+################################# USER INPUTS ################################## 
 
+# Ctl file references other file paths, so the run path must be specified. Also use this variable to decide if run will happen in code or manually (for example on a cluster)
+BPPRunLocation = clusterFolderPath
+
+# Set list of VCF subset file paths to perform BPP on (generally no outgroup and MAC/MAF filters off)
+BPPBestFilterList = bestFilterSetsOutgroupOmittedNoMACMAF
+
+# Population map to use
+initializeBPPPopMap = PopMapDAPC
+
+# Do not include in analysis if less than minSamplesPerPopulationBPP
+minSamplesPerPopulationBPP = 1
+
+# We might want to phase the alleles for each species (particularly if minSamplesPerPopulationBPP is a low number, maybe under 5 or so)
+phase = TRUE
+
+# We might want to ignore some of the DAPC group assignments and test if those samples are separated by BPP
+# popChangesBPP = c(
+#   "MF_21732_jani_dunklei" = "H_jani_dunklei", # Fits in well with H. jani (Eastern Clade), but test in BPP to see if it forms a separate group.
+#   "MF_21732_jani_dunklei" = "H_jani_jani", # Fits in well with H. jani (Eastern Clade), but test in BPP to see if it forms a separate group.
+#   "RWM_1859_ochrorhyncha_baueri" = "H_ochrorhyncha_baueri" # Fits in well with H. ochrorhyncha klauberi, but test in BPP to see if it forms a separate group.
+# )
+
+
+# Append samplesToRemove with hybrid samples for SVDQ. samplesToRemove contains samples that are of poor quality or cannot be used for some reason. hybridSamples can be identified by PCA, IQ-Tree etc.
+samplesToRemoveBPP = c(samplesToRemove, hybridSamples)
+
+# Add H_jani_Other samples to samplesToRemoveBPP if using matchDFJaniSplit
+if (identical(initializeBPPPopMap, matchDFJaniSplit)){
+  samplesToRemoveBPP = union(samplesToRemoveBPP, janiGroups$H_jani_Other)
+}
+
+  # The tree below is an SVDQ output. This is subset based on the populations present in the VCF subset in the loop below.
+# With H_ochrorhyncha_baueri and H_jani_jani and H_jani_dunklei
+treeString = "((((((H_affinis,H_torquata),((((H_catalinae,sp_nov_2),sp_nov_1),(H_chlorophaea_chlorophaea,(H_chlorophaea_deserticola_2,(H_chlorophaea_deserticola_1,H_chlorophaea_loreala)))),H_unaocularus)),((H_ochrorhyncha_baueri,H_ochrorhyncha_ochrorhyncha),(H_ochrorhyncha_klauberi,H_ochrorhyncha_nuchalata))),(((H_jani_jani,H_jani_dunklei),H_jani_texana_Pop1),(H_jani_texana_Pop2,H_jani_texana_Pop3))),H_slevini),Outgroup);"
+
+
+# Number of loci to use in BPP
+randomSampleSize = 200
+
+# Minimum number of loci to sample from
+locusSamplingSubsetSize = randomSampleSize * 5
+
+# Minimum threshold for informative sites for locus to be sampled from
+locusInformativeSiteMinProportion = 0 
+
+
+# Write Ctl files for multiple species delimitation algorithms. First entry: 1 = species delimitation on. Second entry: 1 = algo1, 0 = algo0. Third entry: finetune (e) value (for algo0) or finetune (a) value (for algo1). Fourth entry: finetune (m) value (for algo1 only).
+algo0Params = c(1, 0, 2)
+algo1Params = c(1, 1, 2, 0.5)
+algoSets = list(
+  jobNameAppend = c("Algo0", "Algo1"), 
+  speciesDelimitation = c(paste(algo0Params, collapse = " "), paste(algo1Params, collapse = " "))
+  )
+
+# Set parameters for BPP
+
+# seed = -1 is random
+seedBPP = -1
+
+# Infer species tree. (1 : yes, 0 : no).
+speciestreeBPP = 1
+
+# Use prior or sequence data. (1 : yes, 0 : no).
+usedataBPP = 1
+
+# Remove sites with ambiguous data. (1 : yes, 0 : no).
+cleandataBPP = 0
+
+# Method A01 (species tree inference) uses speciesmodelprior = 1
+# Method A10 (species delimitation with a fixed guide tree) uses either 0 or 1
+# Method A11 (joint species delimitation and species tree inference) uses 0, 1, 2, or 3
+speciesmodelpriorBPP = 1
+
+# Theta prior distribution and parameters 
+thetapriorBPP = paste(c("gamma", 2, 1000), collapse = " ")
+
+# Tau prior distribution and parameters 
+taupriorBPP = paste(c("gamma", 2, 1000), collapse = " ")
+
+# Auto-tune step-length parameters during burnin (1: yes, 0: no)
+finetuneBPP = 1
+
+# Burn-in chains
+burninBPP = 8000
+# binary flags on what to log c(MCMC samples, locusrate, heredity scalars, Gene trees)
+printBPP = paste(c(1, 0, 0, 0), collapse = " ")  
+
+# log sample every sampfreqBPP steps (after Burn-in)
+sampfreqBPP = 2
+
+# Number of samples to log in mcmcfile. Then format it correctly.
+nsampleBPP = 100000
+nsampleBPP = formatC(nsampleBPP, format = "d")
+
+# Threads to run parallel
+threadsBPP = 30
+
+################################################################################
+
+# Change popmap population assignment for any samples in popChangesBPP
+initializeBPPPopMap$PopulationDAPC[initializeBPPPopMap$Sample %in% names(popChangesBPP)] = popChangesBPP[initializeBPPPopMap$Sample[initializeBPPPopMap$Sample %in% names(popChangesBPP)]]
+
+# Subset initializeBPPPopMap to only include samples that belong to a population with at least minSamplesPerPopulationBPP samples and remove samplesToRemoveBPP
+initializeBPPPopMap = initializeBPPPopMap[initializeBPPPopMap$PopulationDAPC %in% names(table(initializeBPPPopMap$PopulationDAPC)[(table(initializeBPPPopMap$PopulationDAPC) >= minSamplesPerPopulationBPP)]),]
+
+initializeBPPPopMap = initializeBPPPopMap[!(initializeBPPPopMap$PopulationDAPC %in% samplesToRemoveBPP),]
+
+lociFile = paste0(rawString,".loci")
+lociPath = paste0(folderPath, rawPath, lociFile)
+lociLines = readLines(lociPath)
+
+    
+# List of commands that can be directly pasted into cluster terminal to run manually
+clusterBPPCommandList = c()
+
+for (currentBestFilterBPP in BPPBestFilterList){
+  
+    # Name of current popsOfInterest group name
+    currentSubset = str_extract(currentBestFilterBPP, paste0("(?<=", rawString, ").*?(?=Outgroup)"))
+    
+    
+    # Create BPPPopMap and subset to only include current subset samples and write as BPPPopMap
+    BPPPopMap = initializeBPPPopMap
+    
+    # Pull samples that contain relevant popsOfInterest population strings in the BPPPopMap$PopulationDAPC names
+    BPPPopMap = BPPPopMap[grepl(paste(popsOfInterest[[currentSubset]], collapse = "|"), BPPPopMap$PopulationDAPC, ignore.case = TRUE),]
+
+    rownames(BPPPopMap) = NULL
+    currentSubsetSamples = BPPPopMap$Sample
+    
+    # We only need to consider currentSubsetSamples loci
+    currentLociLines = lociLines[sapply(strsplit(lociLines,"\\s+"),`[[`,1)
+ %in% currentSubsetSamples | grepl("^//",lociLines)]
+
+    currentLociBreaks = which(grepl("^//", currentLociLines))
+
+    
+    BPPPopMapFilePath = paste0(folderPath, bppPath, currentSubset, "BPPPopMap.txt")
+    con = file(BPPPopMapFilePath, "w")
+    write.table(cbind(BPPPopMap$Sample, BPPPopMap$Population), file = con, sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE)
+    close(con) 
+
+    
+    loci = list()
+    
+    # Add the first locus, which starts from line 1 to the first locus break
+    firstLocusLines = currentLociLines[1:(currentLociBreaks[1] - 1)]
+    loci[[1]] = firstLocusLines
+    
+    for (locus in 2:length(currentLociBreaks)) {
+      # Determine the start and end indices for each locus block
+      locusStartLine = currentLociBreaks[locus] + 1
+      locusEndLine = ifelse(locus < length(currentLociBreaks), currentLociBreaks[locus + 1] - 1, length(currentLociLines))
+      locusLineBounds = currentLociLines[locusStartLine:locusEndLine]
+      loci[[locus]] = locusLineBounds
+    }
+    
+    lociProportionOfSubsetList = c()
+    informativeSiteProportionList = c()
+    locusNameList = c()
+    
+    # Loop over each locus and filter based on criteria
+    for (i in 1:length(loci)) {
+      locusName = as.numeric(gsub(".*\\|(\\d+)\\|.*", "\\1", (currentLociLines[[currentLociBreaks[i]]]))) # Pulls locus number from \\ line in the "||"
+      locusSamples = gsub( " .*$", "", loci[[i]])
+      locusSeqs = gsub("^\\S+\\s+", "", loci[[i]])
+      
+      # Num samples at this locus in current subset
+      countLocusSamplesInSubset = sum(locusSamples %in% currentSubsetSamples) 
+      
+      # Index of locus lines that correspond to samples in the current subset
+      locusIndicesInSubset = which(locusSamples %in% currentSubsetSamples) 
+      
+      # Samples of this locus that are in the sample subset
+      locusSamplesInSubset = locusSamples[locusIndicesInSubset] 
+      
+      # Sequences of this locus that are in the sample subset
+      locusSeqsInSubset = locusSeqs[locusIndicesInSubset] 
+      
+      # Take proportion of missing sites in a locus and averages across all samples in locusSamplesInSubset. Count of all N and - in the entire set of seqs divided by the number of seqs * length of seq
+      AVGProportionMissingInSampleSubset = sum(str_count(locusSeqsInSubset, "[N-]"))/ (length(locusSeqsInSubset) * nchar(locusSeqs[1]))  
+
+      
+      # Split into matrix with each bp in a different cell, samples in rows
+      seqMatrix = do.call(rbind, strsplit(locusSeqsInSubset, "")) 
+      
+      if (countLocusSamplesInSubset >= 1){
+        # Make logical vector for sites. TRUE if there's an informative site. This is defined as a site in the locus that has variation (besides missing data)
+        mask = apply(seqMatrix, 2, function(col) { 
+          
+        # Get unique bases, excluding N and -
+        uniqueBases = setdiff(unique(col), c("N", "-"))  
+        length(uniqueBases) != 1  
+      })
+      } else {
+        mask = 0
+      }
+      
+      # Proportion of sites in the locus that have variation (besides missing data) 
+      informativeSiteProportion = sum(mask)/length(mask) 
+      
+      locusSamplesInSubset = currentSubsetSamples[currentSubsetSamples %in% locusSamples]
+      locusProportionOfSubset = length(locusSamplesInSubset) / length(currentSubsetSamples)
+
+      lociProportionOfSubsetList = c(lociProportionOfSubsetList, locusProportionOfSubset)
+      informativeSiteProportionList = c(informativeSiteProportionList, informativeSiteProportion)
+      locusNameList = c(locusNameList, locusName)
+    }
+    
+    hist(lociProportionOfSubsetList)
+    hist(informativeSiteProportionList)
+    
+    # Max proportion of site missingness to sample from. Corresponds to a multiplier of the random sample size. For example, if locusSamplingSubset = randomSampleSize*5 and randomSampleSize = 200 then this is the proportion site missingness corresponding to the 1000th best locus
+    maxSiteMissingnessPerLocus = floor(1000 * sort(lociProportionOfSubsetList, decreasing = TRUE)[locusSamplingSubsetSize]) / 1000 
+    
+    # Sample loci from these indices
+    lociSamplePoolIndex = which(lociProportionOfSubsetList > maxSiteMissingnessPerLocus & informativeSiteProportionList != locusInformativeSiteMinProportion) 
+
+    # Subset loci for a random sample of the indices of interest
+    sampledLoci = loci[sample(lociSamplePoolIndex, randomSampleSize)]
+    
+    # Filter to only contain lines in each locus that are in the current subset of samples
+    sampledLoci = lapply(sampledLoci, function(locus) { 
+      locus[sapply(locus, function(line) any(startsWith(line, currentSubsetSamples)))]
+    })
+    
+    
+    for (locus in 1:length(sampledLoci)) {
+      currentLocus = sampledLoci[[locus]]
+      
+      locusSamples = gsub( " .*$", "", currentLocus)
+      locusSeqs = gsub("^\\S+\\s+", "", currentLocus)
+      
+      # Format the output for each locus
+      headerLine = paste(length(locusSeqs), nchar(locusSeqs[1]), sep = " ")
+      sequenceLines = paste0("^", currentLocus, collapse = "\n")
+      
+      # Write to the file
+      seqFilePath = paste0(folderPath, bppPath, currentSubset, "Seqs.txt")
+      write.table(c(headerLine, sequenceLines), seqFilePath, col.names = FALSE, row.names = FALSE, quote = FALSE, append = TRUE)
+    }
+    
+
+      for (algo in 1:length(algoSets)){
+        speciesdelimitationBPP = algoSets$speciesDelimitation[algo]
+        currentAlgo = algoSets$jobNameAppend[algo]
+
+        # Define parameters for ctl file
+        seqfileBPP = paste0(BPPRunLocation, bppPath, currentSubset, "Seqs.txt")
+        ImapfileBPP = paste0(BPPRunLocation, bppPath, currentSubset, "BPPPopMap.txt")
+        jobnameBPP = paste0(currentSubset,currentAlgo)
+   
+        # Calculations for speciesAndtreeBPP lines
+        uniquePops = unique(BPPPopMap$Population)
+        popCounts = as.numeric(table(factor(BPPPopMap$Population, levels = uniquePops)))
+        fullTree = read.tree(text = treeString)  
+        subsetTree = keep.tip(fullTree, uniquePops)
+        
+        speciesAndtreeBPPLine1 = paste(length(uniquePops), paste(uniquePops, collapse = " "))
+        speciesAndtreeBPPLine2 = paste(popCounts, collapse = " ")
+        speciesAndtreeBPPLine3 = write.tree(subsetTree)
+  
+        nlociBPP = randomSampleSize
+  
+        # Create the parameter lines
+        BPPCtl = c(
+          paste("seed = ", seedBPP),
+          paste("seqfile = ", seqfileBPP),
+          paste("Imapfile = ", ImapfileBPP),
+          paste("jobname = ", jobnameBPP),
+          paste("speciesdelimitation = ", speciesdelimitationBPP),
+          paste("speciestree = ", speciestreeBPP),
+          paste("species&tree = ", speciesAndtreeBPPLine1),
+          paste(speciesAndtreeBPPLine2),
+          paste(speciesAndtreeBPPLine3),
+          paste("usedata = ", usedataBPP),
+          paste("nloci = ", nlociBPP),
+          paste("cleandata = ", cleandataBPP),
+          paste("speciesmodelprior = ", speciesmodelpriorBPP),
+          paste("thetaprior = ", thetapriorBPP),
+          paste("tauprior = ", taupriorBPP),
+          paste("finetune = ", finetuneBPP),
+          paste("burnin = ", burninBPP),
+          paste("print = ", printBPP),
+          paste("sampfreq = ", sampfreqBPP),
+          paste("nsample = ", nsampleBPP),
+          if (phase){paste("phase =", paste(rep(1,length(uniquePops)), collapse=" "))},
+          paste("threads = ", threadsBPP)
+        )
+      
+          
+        BPPParamsFile = paste0(currentSubset, "Ctl", currentAlgo,  ".ctl")
+        
+        # Write to the file
+        writeLines(BPPCtl, paste0(folderPath, bppPath, BPPParamsFile))
+      
+        # Run BPP if the BPPRunLocation is set to folderPath, otherwise, run manually in cluster
+        if (identical(BPPRunLocation, folderPath)){
+          system(paste0(bppSWPathMac, " --cfile ", folderPath, bppPath, BPPParamsFile))
+          system(paste0("mv ", paste(list.files(path = userPath, pattern = paste0(currentSubset, currentAlgo), full.names = TRUE), collapse = " "), " ", paste0(folderPath, bppPath)))
+        }else{
+          # If running in the cluster, this string can be used to execute after moving entire folder over.
+          clusterBPPCommandList = c(clusterBPPCommandList, paste0(clusterFolderPath, bppSWPathLinux, " --cfile ", clusterFolderPath, bppPath, BPPParamsFile))
+        }
+        
+
+      }
+}
+
+# Move entire BPP folder to cluster, and open a screen in the cluster if BPPRunLocation is set to the clusterFolderPath and run clusterBPPCommands 
+clusterBPPCommands = paste(clusterBPPCommandList, collapse = " & ")
+
+```
+
+</details>
+<br>
+<br>
 
 # References
 
-Alexander DH, Novembre J, Lange K. Fast model-based estimation of ancestry in unrelated individuals. Genome Res. 2009 Sep;19(9):1655-64. doi: 10.1101/gr.094052.109.
+Alexander D, Novembre J, & K Lange. Fast model-based estimation of ancestry in unrelated individuals. Genome Res. 2009. 19(9):1655-64.
 
-Malinsky M, Matschiner M, Svardal H. Dsuite - Fast D-statistics and related admixture evidence from VCF files. Mol Ecol Resour. 2021 Feb;21(2):584-595. doi: 10.1111/1755-0998.13265.
+Flouri T, Jiao X, Rannala B, & Z Yang. Species Tree Inference with BPP using Genomic Sequences and the Multispecies Coalescent. Molecular Biology and Evolution. 2018. 35(10):2585-2593.
 
-Wang IJ. Examining the full effects of landscape heterogeneity on spatial genetic variation: a multiple matrix regression approach for quantifying geographic and ecological isolation. Evolution. 2013 Dec;67(12):3403-11. doi: 10.1111/evo.12134.
+Jouganous J, Long W, Ragsdale A, & S Gravel. Inferring the joint demographic history of multiple populations: beyond the diffusion approximation. Genetics. 2017. 206(3):1549-1567.
 
+Malinsky M, Matschiner M, & Svardal H. Dsuite - Fast D-statistics and related admixture evidence from VCF files. Mol Ecol Resour. 2021. 21(2):584-595. 
 
+Noskova E, Abramov E, Iliutkin S, Sidorin A, Dobrynin P, & Ulyantsev V. GADMA2: more efficient and flexible demographic inference from genetic data. GigaScience. 2023. 12:giad059.
 
+Wang I. Examining the full effects of landscape heterogeneity on spatial genetic variation: a multiple matrix regression approach for quantifying geographic and ecological isolation. Evolution. 2013. 67(12):3403-11. 

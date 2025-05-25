@@ -365,10 +365,10 @@ mexico = world[world$name == OtherCountriesInMap, ]
 </details>
 
 ## Define and Iterate Population Map
-This is a section that will be iterated by the user after subsequent analyses. These variables can be empty during the initial run, or input based on some prior knowledge. Under the section USER INPUTS, the variables to change after subsequent analyses are the following:
-          1. `samplesToRemove`: this variable can be manually changed if a fundamental error with a sample is observed.
-          2. `hybridSamples`: this variable can be manually changed after running concatenated trees, PCA, DAPC, and ADMIXTURE to define a sample as being between observed populations.
-          3. `popChanges`: this variable can be manually changed after running concatenated trees, PCA, and DAPC to reclassify a sample's population.
+This is a section that will be iterated by the user after subsequent analyses. These variables can be empty during the initial run, or input based on some prior knowledge. Under the section USER INPUTS, the variables to change after subsequent analyses are the following:<br>
+          1. `samplesToRemove`: this variable can be manually changed if a fundamental error with a sample is observed.<br>
+          2. `hybridSamples`: this variable can be manually changed after running concatenated trees, PCA, DAPC, and ADMIXTURE to define a sample as being between observed populations.<br>
+          3. `popChanges`: this variable can be manually changed after running concatenated trees, PCA, and DAPC to reclassify a sample's population.<br>
 <br>
 <br>
 Note that the USER INPUTS section of the code below reflects population assignments after iterative assignment. Initially, `hybridSamples` and `popChanges` were input as empty vectors. After running concatenated trees, PCA, DAPC, and ADMIXTURE, samples that were better classified as being in other or between two populations became more clear. Rerun these steps until the population map has converged and remains unchanged. In the example below, this required three iterations, but may take a few more for more complex systems.

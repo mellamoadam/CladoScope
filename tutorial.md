@@ -2971,7 +2971,9 @@ Here is an example of an output GADMA demographic history model.
 <br>
 
 # BPP
+
 BPP uses the multispecies coalescent model to estimate species trees from multilocus data, accounting for variation in gene trees across loci (Flouri et al., 2018). It implements a full-likelihood Bayesian approach with MCMC. Here we create text files necessary to run BPP (for both algorithm 0 and 1). This analysis can be costly in terms of computational power, therefore, I recommend to run with `BPPRunLocation` set to `clusterFolderPath`. This alters how the run files reference each other, and assumes the folder will be moved to the `clusterFolderPath` location.
+
 <br>
 <br>
 <details>
